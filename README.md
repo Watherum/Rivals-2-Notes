@@ -48,6 +48,19 @@ Builds the frontend and starts the Express server serving everything on a single
 
 To access from your phone on the same WiFi, find your PC's local IP address and open `http://[your-PC-IP]:3001`.
 
+### Accessing Your Notes Anywhere (Port Forwarding)
+
+If you want to access your notes from outside your home network — from your phone on mobile data, a friend's house, or anywhere with internet — you can set up port forwarding on your router.
+
+1. Run the app in production mode (`npm run start`) on your PC so it's serving on port `3001`
+2. Find your PC's local IP address (e.g. `192.168.1.x`) — shown in the terminal or via `ipconfig` on Windows
+3. Log in to your router's admin page (usually `192.168.1.1` or `192.168.0.1` in your browser) and forward **external port 3001** to your PC's local IP on **internal port 3001**
+4. Find your public IP at a site like [whatismyip.com](https://www.whatismyip.com) and open `http://[your-public-IP]:3001` from any device
+
+For step-by-step instructions specific to your router model, search **"how to port forward [your router brand/model]"** — the steps vary by manufacturer.
+
+> **Security note:** Port forwarding exposes the app to the internet. Only do this on a trusted network, and close the port when you're not using it remotely.
+
 ### Building the .exe
 
 ```
