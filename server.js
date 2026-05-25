@@ -2,8 +2,12 @@ import express from 'express'
 import cors from 'cors'
 import fs from 'fs'
 import path from 'path'
+import os from 'os'
 import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
+import { Readable } from 'stream'
+import { pipeline } from 'stream/promises'
+import { spawn as spawnProcess } from 'child_process'
 import multer from 'multer'
 import AdmZip from 'adm-zip'
 const require = createRequire(import.meta.url)
@@ -11,6 +15,23 @@ const archiver = require('archiver')
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = process.env.DATA_DIR || __dirname
+
+let pkgVersion = '0.0.0'
+try { pkgVersion = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version } catch {}
+const CURRENT_VERSION = pkgVersion
+const GITHUB_REPO = 'Watherum/Rivals-2-Notes'
+
+function isNewerVersion(current, latest) {
+  const a = current.replace(/^v/, '').split('.').map(Number)
+  const b = latest.replace(/^v/, '').split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    if ((b[i] || 0) > (a[i] || 0)) return true
+    if ((b[i] || 0) < (a[i] || 0)) return false
+  }
+  return false
+}
+
+let updateState = { status: 'idle', progress: 0, error: null, latestVersion: null, downloadUrl: null }
 const NOTES_DIR = path.join(DATA_DIR, 'notes')
 const ATTACHMENTS_DIR = path.join(DATA_DIR, 'attachments')
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json')
@@ -335,6 +356,122 @@ app.post('/api/import', (req, res) => {
       res.status(400).json({ error: e.message })
     }
   })
+})
+
+// --- Update endpoints ---
+
+app.get('/api/update/check', async (req, res) => {
+  try {
+    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      headers: { 'User-Agent': 'RoA2-Notes-App' },
+    })
+    if (!response.ok) return res.json({ error: 'Could not reach GitHub. Try again later.' })
+
+    const release = await response.json()
+    if (!release.tag_name) return res.json({ error: 'No releases found on GitHub.' })
+
+    const latestVersion = release.tag_name.replace(/^v/, '')
+    const hasUpdate = isNewerVersion(CURRENT_VERSION, latestVersion)
+    const exeAsset = (release.assets || []).find(a => a.name.endsWith('.exe'))
+    const downloadUrl = exeAsset?.browser_download_url || null
+
+    if (hasUpdate && downloadUrl) {
+      updateState.latestVersion = latestVersion
+      updateState.downloadUrl = downloadUrl
+    }
+
+    res.json({
+      currentVersion: CURRENT_VERSION,
+      latestVersion,
+      hasUpdate,
+      downloadUrl,
+      releaseUrl: release.html_url,
+      isPackaged: !!process.env.PORTABLE_EXECUTABLE_FILE,
+    })
+  } catch {
+    res.json({ error: 'Network error. Check your connection and try again.' })
+  }
+})
+
+app.get('/api/update/status', (req, res) => {
+  res.json(updateState)
+})
+
+app.post('/api/update/download', async (req, res) => {
+  if (!process.env.PORTABLE_EXECUTABLE_FILE) {
+    return res.status(400).json({ error: 'Auto-download is only available in the packaged app.' })
+  }
+  if (!updateState.downloadUrl) {
+    return res.status(400).json({ error: 'No update available. Check for updates first.' })
+  }
+  if (updateState.status === 'downloading') {
+    return res.json({ status: 'downloading' })
+  }
+
+  updateState.status = 'downloading'
+  updateState.progress = 0
+  updateState.error = null
+  res.json({ status: 'downloading' })
+
+  ;(async () => {
+    try {
+      const exeDir = process.env.PORTABLE_EXECUTABLE_DIR
+      const updatePath = path.join(exeDir, 'RoA2 Notes-update.exe')
+
+      const dlResponse = await fetch(updateState.downloadUrl)
+      if (!dlResponse.ok) throw new Error(`Download failed (HTTP ${dlResponse.status})`)
+
+      const totalBytes = parseInt(dlResponse.headers.get('content-length') || '0', 10)
+      let downloadedBytes = 0
+
+      const writeStream = fs.createWriteStream(updatePath)
+      const nodeStream = Readable.fromWeb(dlResponse.body)
+
+      nodeStream.on('data', chunk => {
+        downloadedBytes += chunk.length
+        if (totalBytes > 0) {
+          updateState.progress = Math.round((downloadedBytes / totalBytes) * 100)
+        }
+      })
+
+      await pipeline(nodeStream, writeStream)
+
+      updateState.status = 'ready'
+      updateState.progress = 100
+    } catch (e) {
+      updateState.status = 'error'
+      updateState.error = e.message
+    }
+  })()
+})
+
+app.post('/api/update/restart', (req, res) => {
+  if (!process.env.PORTABLE_EXECUTABLE_FILE) {
+    return res.status(400).json({ error: 'Restart is only available in the packaged app.' })
+  }
+  if (updateState.status !== 'ready') {
+    return res.status(400).json({ error: 'Update not ready.' })
+  }
+
+  const exeDir = process.env.PORTABLE_EXECUTABLE_DIR
+  const currentExe = process.env.PORTABLE_EXECUTABLE_FILE
+  const updateExe = path.join(exeDir, 'RoA2 Notes-update.exe')
+  const scriptPath = path.join(os.tmpdir(), `roa2-update-${Date.now()}.cmd`)
+
+  const script = [
+    '@echo off',
+    'timeout /t 2 /nobreak > nul',
+    `move /Y "${updateExe}" "${currentExe}"`,
+    `start "" "${currentExe}"`,
+    'del "%~f0"',
+  ].join('\r\n')
+
+  fs.writeFileSync(scriptPath, script, 'utf8')
+
+  spawnProcess('cmd.exe', ['/c', scriptPath], { detached: true, stdio: 'ignore' }).unref()
+
+  res.json({ ok: true })
+  setTimeout(() => process.exit(0), 500)
 })
 
 // SPA fallback for production

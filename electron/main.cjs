@@ -65,6 +65,8 @@ serverProcess = spawn(process.execPath, [serverScript], {
   serverProcess.stderr.on('data', (data) => {
     console.error('[server]', data.toString())
   })
+
+  serverProcess.on('exit', () => app.quit())
 })
 
 app.on('before-quit', () => {
