@@ -24,14 +24,8 @@ try { pkgVersion = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json
 const CURRENT_VERSION = pkgVersion
 const GITHUB_REPO = 'Watherum/Rivals-2-Notes'
 
-function isNewerVersion(current, latest) {
-  const a = current.replace(/^v/, '').split('.').map(Number)
-  const b = latest.replace(/^v/, '').split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    if ((b[i] || 0) > (a[i] || 0)) return true
-    if ((b[i] || 0) < (a[i] || 0)) return false
-  }
-  return false
+function normalizeTag(tag) {
+  return tag.replace(/^v/i, '').toLowerCase()
 }
 
 let updateState = { status: 'idle', progress: 0, error: null, latestVersion: null, downloadUrl: null }
@@ -513,16 +507,33 @@ app.post('/api/import', requireAuth, (req, res) => {
 
 app.get('/api/update/check', async (req, res) => {
   try {
-    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
-      headers: { 'User-Agent': 'RoA2-Notes-App' },
-    })
-    if (!response.ok) return res.json({ error: 'Could not reach GitHub. Try again later.' })
+    const headers = { 'User-Agent': 'RoA2-Notes-App' }
 
-    const release = await response.json()
+    // Fetch latest release and all releases in parallel
+    const [latestRes, allRes] = await Promise.all([
+      fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, { headers }),
+      fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases`, { headers }),
+    ])
+    if (!latestRes.ok) return res.json({ error: 'Could not reach GitHub. Try again later.' })
+
+    const release = await latestRes.json()
     if (!release.tag_name) return res.json({ error: 'No releases found on GitHub.' })
 
-    const latestVersion = release.tag_name.replace(/^v/, '')
-    const hasUpdate = isNewerVersion(CURRENT_VERSION, latestVersion)
+    // Find current version's release by matching tag (case-insensitive) to get its publish date
+    let currentReleaseDate = null
+    if (allRes.ok) {
+      const allReleases = await allRes.json()
+      const currentRelease = allReleases.find(r => normalizeTag(r.tag_name) === normalizeTag(CURRENT_VERSION))
+      if (currentRelease) currentReleaseDate = new Date(currentRelease.published_at)
+    }
+
+    const latestVersion = release.tag_name.replace(/^v/i, '')
+    const latestDate = new Date(release.published_at)
+
+    // Primary: compare publish dates (format-agnostic). Fallback: different tag means update.
+    const isSameTag = normalizeTag(release.tag_name) === normalizeTag(CURRENT_VERSION)
+    const hasUpdate = !isSameTag && (currentReleaseDate ? latestDate > currentReleaseDate : true)
+
     const exeAsset = (release.assets || []).find(a => a.name.endsWith('.exe'))
     const downloadUrl = exeAsset?.browser_download_url || null
 
