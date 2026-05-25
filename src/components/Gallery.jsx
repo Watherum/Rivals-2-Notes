@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { CHARACTERS } from '../data/characters'
 import Lightbox from './Lightbox'
 import ConfirmModal from './ConfirmModal'
+import { authFetch } from '../utils/api'
 
 const IMAGE_EXTS = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i
 const VIDEO_EXTS = /\.(mp4|webm|mov|avi|mkv)$/i
@@ -34,7 +35,7 @@ export default function Gallery() {
     const url = f.scope === 'general'
       ? `/api/attachments/general/${encodeURIComponent(f.filename)}`
       : `/api/attachments/${f.scope}/${f.id}/${encodeURIComponent(f.filename)}`
-    await fetch(url, { method: 'DELETE' })
+    await authFetch(url, { method: 'DELETE' })
     setGroups(prev =>
       prev
         .map(g => ({ ...g, files: g.files.filter(x => x.url !== f.url) }))
@@ -44,7 +45,7 @@ export default function Gallery() {
   }
 
   useEffect(() => {
-    fetch('/api/attachments')
+    authFetch('/api/attachments')
       .then(r => r.json())
       .then(files => {
         setGroups(groupAttachments(files))

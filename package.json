@@ -1,7 +1,7 @@
 {
   "name": "rivals-2-notes",
   "private": true,
-  "version": "1.1.0",
+  "version": "2.0.0",
   "type": "module",
   "author": "Watherum",
   "main": "electron/main.cjs",
@@ -28,7 +28,13 @@
       "node_modules/**"
     ],
     "extraResources": [
-      { "from": "public", "to": "public", "filter": ["logos/**"] }
+      {
+        "from": "public",
+        "to": "public",
+        "filter": [
+          "logos/**"
+        ]
+      }
     ],
     "win": {
       "target": "portable",
@@ -38,11 +44,14 @@
   "dependencies": {
     "adm-zip": "^0.5.17",
     "archiver": "^8.0.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.15.1"
   },
   "devDependencies": {

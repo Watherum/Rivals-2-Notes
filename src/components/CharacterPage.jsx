@@ -3,6 +3,7 @@ import { CHARACTERS, characterWikiUrl, characterDataUrl } from '../data/characte
 import { useCharacterNote } from '../hooks/useNotes'
 import WikiLink from './WikiLink'
 import AttachmentSection from './AttachmentSection'
+import MarkdownEditor from './MarkdownEditor'
 
 export default function CharacterPage() {
   const { characterId } = useParams()
@@ -29,12 +30,12 @@ export default function CharacterPage() {
       </div>
 
       <section>
-        <textarea
+        <MarkdownEditor
           value={note}
-          onChange={e => setNote(e.target.value)}
+          onChange={setNote}
           placeholder={loaded ? `Notes on fighting ${character.name} — weaknesses, punishes, what to watch for...` : 'Loading...'}
           disabled={!loaded}
-          className="w-full h-[60vh] bg-[#16213e] text-white rounded-lg p-4 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-[#e94560] placeholder-gray-500 disabled:opacity-50"
+          className="h-[60vh]"
         />
         <p className="text-xs text-gray-500 mt-1">Auto-saved to notes/{character.id}.txt</p>
         <AttachmentSection scope="character" id={characterId} />

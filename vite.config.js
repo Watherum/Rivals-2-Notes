@@ -31,6 +31,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png}'],
+        globIgnores: ['**/win-unpacked/**', '**/node_modules/**'],
         runtimeCaching: [],
       },
     }),

@@ -1,6 +1,6 @@
 # RoA2 Notes
 
-A personal note-taking app for Rivals of Aether 2. Track notes on every character, your mains, and general game knowledge — with support for image and video attachments. Everything is saved as plain files on your computer.
+A note-taking app for Rivals of Aether 2. Track notes on every character, your mains, and general game knowledge — with rich text formatting, image and video attachments, and multi-account support. Everything is saved as plain files on your computer.
 
 ---
 
@@ -26,7 +26,7 @@ npm install
 
 Download `RoA2 Notes.exe` and place it in any folder. Double-click to launch — no terminal needed. The app starts a local server in the background and opens in your browser automatically. A system tray icon lets you reopen the app or quit it.
 
-All data (`notes/`, `attachments/`, `settings.json`) is stored in the same folder as the `.exe`, so you can move the exe anywhere and your data travels with it.
+All data (`notes/`, `attachments/`, `users.json`) is stored in the same folder as the `.exe`, so you can move the exe anywhere and your data travels with it.
 
 > If you want to share data with a terminal-based setup, place the exe in your project root.
 
@@ -59,7 +59,7 @@ If you want to access your notes from outside your home network — from your ph
 
 For step-by-step instructions specific to your router model, search **"how to port forward [your router brand/model]"** — the steps vary by manufacturer.
 
-> **Security note:** Port forwarding exposes the app to the internet. Only do this on a trusted network, and close the port when you're not using it remotely.
+> **Security note:** Port forwarding exposes the app to the internet. Each person accessing it remotely should have their own account. Only do this on a trusted network, and close the port when you're not using it remotely.
 
 ### Building the .exe
 
@@ -70,6 +70,22 @@ npm run electron:build
 Outputs `dist/RoA2 Notes <version>.exe`. Move it wherever you want and double-click to run.
 
 > If port 3001 is already in use, the server will automatically try the next available port.
+
+---
+
+## Accounts
+
+The app requires an account to use. On first launch you'll be taken to the sign-up screen.
+
+- **Sign up** — choose a username (2–32 characters: letters, numbers, `-`, `_`) and a password. Enter the password twice to confirm.
+- **Sign in** — enter your username and password. Your session is remembered in the browser, so you won't need to sign in again unless you clear browser storage or sign out manually.
+- **Sign out** — click **Sign out** in the top navigation bar.
+- **Change password** — go to **Manage Data → Change Password**. Enter your current password and your new password twice to confirm.
+- **Profile photo** — go to **Manage Data → Profile Photo** to upload a photo (any image format, up to 5 MB). Your photo appears as a circle next to your username in the navigation bar. You can replace or remove it at any time.
+
+Each account's notes and attachments are completely separate. Users can only see and access their own data. Accounts are stored in `users.json` alongside the rest of the app's data.
+
+> **Port forwarding note:** If you expose the app to the internet via port forwarding, each person accessing it needs their own account. See the port forwarding section below.
 
 ---
 
@@ -93,6 +109,16 @@ Select your main characters from a collapsible grid (with stock icons). Each sel
 ### Game Notes
 A single full-page notes area for anything game-wide — general strategy, tournament prep, observations, etc. Supports attachments. Saved to `notes/game-general.txt`.
 
+### Rich Text Formatting
+The notes areas on **Character Notes**, **My Mains**, and **Game Notes** all include a formatting toolbar with:
+- **B** — bold
+- *I* — italic
+- **H1 / H2 / H3** — headings
+- **•** — bullet list
+- **1.** — numbered list
+
+Click a button while text is selected to wrap it, or click with no selection to insert a placeholder. Toggle **Preview** to render the formatted note. Notes are stored as Markdown, so existing plain-text notes are fully compatible.
+
 ### Gallery
 A master gallery showing every uploaded attachment across all pages, grouped by source (e.g. "Zetterburn — Character Notes", "Orcane — My Mains", "Game Notes"). Click any image to open it in a lightbox; click any video to play it inline. Attachments can also be deleted from here.
 
@@ -106,50 +132,56 @@ Quick links to useful external sites:
 - **Watherum's Discord** — community Discord
 
 ### Manage Data
-- **Export** — downloads all notes and attachments as a single `roa2-notes-backup.zip` file
+- **Profile Photo** — upload or remove your profile photo. Appears as a circle next to your username in the nav bar. Accepts any image format, up to 5 MB.
+- **Export** — downloads your notes and attachments as a single `roa2-notes-backup.zip` file
 - **Import** — restores notes and attachments from a `.zip` backup, or notes only from a legacy `.json` backup
-- **Attachment Storage** — set a maximum size limit (in GB) for the attachments directory. Uploads that would exceed the limit are rejected. Leave blank for no limit.
+- **Change Password** — update your password after confirming your current one. New password must be at least 6 characters.
+- **Attachment Storage** — set a personal size limit (in GB) for your attachments. Uploads that would exceed your limit are rejected. Each user sets their own limit independently. Leave blank for no limit.
 
 ---
 
 ## Where Data Is Saved
 
+### Accounts
+Account credentials are stored in `users.json` in the app's data directory. Passwords are hashed with bcrypt and never stored in plain text.
+
 ### Notes
-Stored as plain text files in the `notes/` folder:
+Stored as plain text files under `notes/{username}/`:
 
 | File | Contents |
 |---|---|
-| `notes/zetterburn.txt` | Notes on fighting Zetterburn |
-| `notes/main-zetterburn.txt` | Your Zetterburn mains notes |
-| `notes/game-general.txt` | Game-wide notes |
-| `notes/mains.json` | Your selected main characters |
+| `notes/alice/zetterburn.txt` | Alice's notes on fighting Zetterburn |
+| `notes/alice/main-zetterburn.txt` | Alice's Zetterburn mains notes |
+| `notes/alice/game-general.txt` | Alice's game-wide notes |
+| `notes/alice/mains.json` | Alice's selected main characters |
 
-You can open, edit, or back these files up directly.
+Each account's files are fully separated by subfolder. Files placed directly in `notes/` with no username subfolder are ignored.
 
 ### Attachments
-Stored in the `attachments/` folder, organized by source:
+Stored under `attachments/{username}/`, organized by source:
 
 | Folder | Contents |
 |---|---|
-| `attachments/character/{characterId}/` | Images/videos uploaded on a character's notes page |
-| `attachments/mains/{characterId}/` | Images/videos uploaded on a main's panel |
-| `attachments/general/` | Images/videos uploaded on the Game Notes page |
+| `attachments/alice/character/{characterId}/` | Images/videos uploaded on a character's notes page |
+| `attachments/alice/mains/{characterId}/` | Images/videos uploaded on a main's panel |
+| `attachments/alice/general/` | Images/videos uploaded on the Game Notes page |
+| `attachments/alice/avatar/` | Profile photo |
 
 ---
 
 ## Backup & Restore
 
 ### Export
-Go to **Manage Data → Download Backup**. This creates a `roa2-notes-backup.zip` containing:
+Go to **Manage Data → Download Backup**. This creates a `roa2-notes-backup.zip` containing only your own notes and attachments:
 - `notes-export.json` — all your text notes
-- `attachments/` — all uploaded images and videos
+- `attachments/` — all your uploaded images and videos
 
 ### Import
 Go to **Manage Data → Choose Backup File** and select either:
 - A `.zip` file (restores notes + attachments)
 - A legacy `.json` file (restores notes only)
 
-Existing data with matching keys will be overwritten.
+Imported data is written into your account's folders. Existing data with matching keys will be overwritten.
 
 ---
 

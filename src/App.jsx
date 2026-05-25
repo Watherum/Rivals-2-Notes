@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { Routes, Route, Link, useLocation, Navigate, Outlet } from 'react-router-dom'
 import CharacterGrid from './components/CharacterGrid'
 import CharacterPage from './components/CharacterPage'
 import MyMains from './components/MyMains'
@@ -7,6 +7,9 @@ import GameNotes from './components/GameNotes'
 import ManageData from './components/ManageData'
 import Resources from './components/Resources'
 import Gallery from './components/Gallery'
+import Login from './components/Login'
+import Signup from './components/Signup'
+import { useAuth } from './contexts/AuthContext'
 
 const LINKS = [
   { to: '/',          label: 'Roster' },
@@ -19,6 +22,7 @@ const LINKS = [
 
 function NavBar() {
   const { pathname } = useLocation()
+  const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
 
   function linkClass(to) {
@@ -40,6 +44,22 @@ function NavBar() {
               {l.label}
             </Link>
           ))}
+          <div className="flex items-center gap-3 border-l border-[#0f3460] pl-6 ml-2">
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-[#0f3460]" />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-[#0f3460] flex items-center justify-center text-white text-xs font-bold select-none">
+                {user?.username?.[0]?.toUpperCase()}
+              </div>
+            )}
+            <span className="text-sm text-gray-400">{user?.username}</span>
+            <button
+              onClick={logout}
+              className="text-sm text-gray-300 hover:text-[#e94560] transition-colors"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
 
         {/* Mobile hamburger */}
@@ -62,11 +82,29 @@ function NavBar() {
               key={l.to}
               to={l.to}
               onClick={() => setMenuOpen(false)}
-              className={`px-4 py-3 text-sm font-medium border-b border-[#0f3460] last:border-0 transition-colors ${linkClass(l.to)}`}
+              className={`px-4 py-3 text-sm font-medium border-b border-[#0f3460] transition-colors ${linkClass(l.to)}`}
             >
               {l.label}
             </Link>
           ))}
+          <div className="px-4 py-3 flex items-center justify-between border-b border-[#0f3460] last:border-0">
+            <div className="flex items-center gap-2">
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-[#0f3460]" />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-[#0f3460] flex items-center justify-center text-white text-xs font-bold select-none">
+                  {user?.username?.[0]?.toUpperCase()}
+                </div>
+              )}
+              <span className="text-sm text-gray-400">{user?.username}</span>
+            </div>
+            <button
+              onClick={() => { setMenuOpen(false); logout() }}
+              className="text-sm text-[#e94560] hover:underline"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       )}
     </nav>
@@ -101,22 +139,35 @@ function Footer() {
   )
 }
 
-export default function App() {
+function ProtectedLayout() {
+  const { user, loading } = useAuth()
+  if (loading) return <div className="min-h-screen bg-[#1a1a2e]" />
+  if (!user) return <Navigate to="/login" replace />
   return (
     <div className="min-h-screen bg-[#1a1a2e] flex flex-col">
       <NavBar />
       <main className="flex-1">
-        <Routes>
-          <Route path="/" element={<CharacterGrid />} />
-          <Route path="/character/:characterId" element={<CharacterPage />} />
-          <Route path="/mains" element={<MyMains />} />
-          <Route path="/notes" element={<GameNotes />} />
-          <Route path="/gallery" element={<Gallery />} />
-          <Route path="/resources" element={<Resources />} />
-          <Route path="/manage" element={<ManageData />} />
-        </Routes>
+        <Outlet />
       </main>
       <Footer />
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login"  element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route element={<ProtectedLayout />}>
+        <Route path="/" element={<CharacterGrid />} />
+        <Route path="/character/:characterId" element={<CharacterPage />} />
+        <Route path="/mains"     element={<MyMains />} />
+        <Route path="/notes"     element={<GameNotes />} />
+        <Route path="/gallery"   element={<Gallery />} />
+        <Route path="/resources" element={<Resources />} />
+        <Route path="/manage"    element={<ManageData />} />
+      </Route>
+    </Routes>
   )
 }

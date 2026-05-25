@@ -8,8 +8,11 @@ import { createRequire } from 'module'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import { spawn as spawnProcess } from 'child_process'
+import { randomBytes } from 'crypto'
 import multer from 'multer'
 import AdmZip from 'adm-zip'
+import jwt from 'jsonwebtoken'
+import bcrypt from 'bcryptjs'
 const require = createRequire(import.meta.url)
 const archiver = require('archiver')
 
@@ -35,10 +38,19 @@ let updateState = { status: 'idle', progress: 0, error: null, latestVersion: nul
 const NOTES_DIR = path.join(DATA_DIR, 'notes')
 const ATTACHMENTS_DIR = path.join(DATA_DIR, 'attachments')
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json')
+const USERS_FILE = path.join(DATA_DIR, 'users.json')
+const JWT_SECRET_FILE = path.join(DATA_DIR, 'jwt-secret.txt')
 
 if (!fs.existsSync(NOTES_DIR)) fs.mkdirSync(NOTES_DIR)
 if (!fs.existsSync(ATTACHMENTS_DIR)) fs.mkdirSync(ATTACHMENTS_DIR)
 
+function getJwtSecret() {
+  if (fs.existsSync(JWT_SECRET_FILE)) return fs.readFileSync(JWT_SECRET_FILE, 'utf8').trim()
+  const secret = randomBytes(64).toString('hex')
+  fs.writeFileSync(JWT_SECRET_FILE, secret, 'utf8')
+  return secret
+}
+const JWT_SECRET = getJwtSecret()
 
 const app = express()
 app.use(cors())
@@ -51,14 +63,37 @@ if (fs.existsSync(DIST)) {
   app.use(express.static(DIST))
 }
 
+// --- Auth helpers ---
+function readUsers() {
+  try { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')) } catch { return {} }
+}
+
+function writeUsers(users) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8')
+}
+
+function requireAuth(req, res, next) {
+  const auth = req.headers['authorization'] || ''
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : (req.query.token || null)
+  if (!token) return res.status(401).json({ error: 'Not authenticated' })
+  try {
+    req.user = jwt.verify(token, JWT_SECRET)
+    next()
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token' })
+  }
+}
+
 // --- Multer for attachment uploads ---
+// Note: destination reads req.user.username which is set by requireAuth before multer runs
 const attachmentStorage = multer.diskStorage({
   destination(req, file, cb) {
+    const username = req.user.username
     const scope = req.body.scope || 'general'
     const id = req.body.id || ''
     const dir = id
-      ? path.join(ATTACHMENTS_DIR, scope, id)
-      : path.join(ATTACHMENTS_DIR, scope)
+      ? path.join(ATTACHMENTS_DIR, username, scope, id)
+      : path.join(ATTACHMENTS_DIR, username, scope)
     fs.mkdirSync(dir, { recursive: true })
     cb(null, dir)
   },
@@ -68,23 +103,13 @@ const attachmentStorage = multer.diskStorage({
 })
 const uploadAttachment = multer({ storage: attachmentStorage })
 
-// Multer for import (single backup file)
-const importStorage = multer.diskStorage({
-  destination(req, file, cb) {
-    cb(null, path.join(__dirname, 'tmp-import'))
-  },
-  filename(req, file, cb) {
-    cb(null, file.originalname)
-  },
-})
-const uploadImport = multer({ storage: importStorage })
-
 // --- Settings helpers ---
 function readSettings() {
   try { return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) } catch { return {} }
 }
 
-function getAttachmentsDirSize(dir = ATTACHMENTS_DIR) {
+function getAttachmentsDirSize(dir) {
+  if (!dir) dir = ATTACHMENTS_DIR
   let total = 0
   if (!fs.existsSync(dir)) return total
   for (const entry of fs.readdirSync(dir)) {
@@ -95,15 +120,29 @@ function getAttachmentsDirSize(dir = ATTACHMENTS_DIR) {
   return total
 }
 
+// --- User-scoped path helpers ---
+function userNotesDir(username) {
+  const dir = path.join(NOTES_DIR, username)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
+function userAttachmentsDir(username) {
+  const dir = path.join(ATTACHMENTS_DIR, username)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
 // --- Notes helpers ---
-function keyToFile(key) {
-  if (key === 'user_mains') return path.join(NOTES_DIR, 'mains.json')
-  if (key === 'mains_general') return path.join(NOTES_DIR, 'mains-general.txt')
-  if (key === 'game_general') return path.join(NOTES_DIR, 'game-general.txt')
-  if (key.startsWith('main_notes_')) return path.join(NOTES_DIR, 'main-' + key.slice(11) + '.txt')
-  if (key.startsWith('notes_')) return path.join(NOTES_DIR, key.slice(6) + '.txt')
-  if (key.startsWith('matchup_')) return path.join(NOTES_DIR, 'matchup-' + key.slice(8).replace('_vs_', '-vs-') + '.txt')
-  return path.join(NOTES_DIR, key + '.txt')
+function keyToFile(key, username) {
+  const base = userNotesDir(username)
+  if (key === 'user_mains') return path.join(base, 'mains.json')
+  if (key === 'mains_general') return path.join(base, 'mains-general.txt')
+  if (key === 'game_general') return path.join(base, 'game-general.txt')
+  if (key.startsWith('main_notes_')) return path.join(base, 'main-' + key.slice(11) + '.txt')
+  if (key.startsWith('notes_')) return path.join(base, key.slice(6) + '.txt')
+  if (key.startsWith('matchup_')) return path.join(base, 'matchup-' + key.slice(8).replace('_vs_', '-vs-') + '.txt')
+  return path.join(base, key + '.txt')
 }
 
 function fileToKey(filename) {
@@ -116,10 +155,12 @@ function fileToKey(filename) {
   return 'notes_' + base
 }
 
-function readAllNotes() {
+function readAllNotes(username) {
+  const dir = userNotesDir(username)
   const notes = {}
-  for (const f of fs.readdirSync(NOTES_DIR)) {
-    const fp = path.join(NOTES_DIR, f)
+  for (const f of fs.readdirSync(dir)) {
+    const fp = path.join(dir, f)
+    if (!fs.statSync(fp).isFile()) continue
     const key = fileToKey(f)
     const raw = fs.readFileSync(fp, 'utf8')
     try { notes[key] = JSON.parse(raw) } catch { notes[key] = raw }
@@ -127,10 +168,10 @@ function readAllNotes() {
   return notes
 }
 
-function writeNotes(notes) {
+function writeNotes(notes, username) {
   let count = 0
   for (const [key, value] of Object.entries(notes)) {
-    const fp = keyToFile(key)
+    const fp = keyToFile(key, username)
     const content = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
     fs.writeFileSync(fp, content, 'utf8')
     count++
@@ -138,54 +179,174 @@ function writeNotes(notes) {
   return count
 }
 
-// --- Notes endpoints ---
-app.get('/api/notes', (req, res) => {
-  res.json(readAllNotes())
+// --- Attachment URL/dir helpers ---
+function attachmentUrl(username, scope, id, filename) {
+  if (id) return `/attachments/${username}/${scope}/${id}/${filename}`
+  return `/attachments/${username}/${scope}/${filename}`
+}
+
+function attachmentDir(username, scope, id) {
+  if (id) return path.join(ATTACHMENTS_DIR, username, scope, id)
+  return path.join(ATTACHMENTS_DIR, username, scope)
+}
+
+// --- Auth routes ---
+app.post('/api/auth/signup', async (req, res) => {
+  const { username, password } = req.body || {}
+  if (!username || !password) return res.status(400).json({ error: 'Username and password required' })
+  if (!/^[a-zA-Z0-9_-]{2,32}$/.test(username))
+    return res.status(400).json({ error: 'Username must be 2–32 characters (letters, numbers, hyphens, underscores)' })
+
+  const users = readUsers()
+  if (users[username]) return res.status(409).json({ error: 'Username already taken' })
+
+  const passwordHash = await bcrypt.hash(password, 12)
+  users[username] = { passwordHash, createdAt: new Date().toISOString() }
+  writeUsers(users)
+
+  userNotesDir(username)
+  userAttachmentsDir(username)
+
+  const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '90d' })
+  res.json({ ok: true, token, username })
 })
 
-app.put('/api/notes/:key', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body || {}
+  const users = readUsers()
+  const user = users[username]
+  if (!user) return res.status(401).json({ error: 'Invalid username or password' })
+
+  const valid = await bcrypt.compare(password, user.passwordHash)
+  if (!valid) return res.status(401).json({ error: 'Invalid username or password' })
+
+  const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '90d' })
+  res.json({ ok: true, token, username })
+})
+
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  const users = readUsers()
+  const { avatarUrl = null } = users[req.user.username] || {}
+  res.json({ username: req.user.username, avatarUrl })
+})
+
+const avatarUpload = multer({
+  storage: multer.diskStorage({
+    destination(req, file, cb) {
+      const dir = path.join(ATTACHMENTS_DIR, req.user.username, 'avatar')
+      fs.mkdirSync(dir, { recursive: true })
+      cb(null, dir)
+    },
+    filename(req, file, cb) {
+      const ext = path.extname(file.originalname).toLowerCase() || '.jpg'
+      cb(null, 'avatar' + ext)
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter(req, file, cb) {
+    cb(null, /^image\//.test(file.mimetype))
+  },
+})
+
+app.post('/api/auth/avatar', requireAuth, (req, res) => {
+  avatarUpload.single('avatar')(req, res, err => {
+    if (err) return res.status(400).json({ error: err.message })
+    if (!req.file) return res.status(400).json({ error: 'No image uploaded' })
+
+    const username = req.user.username
+    const avatarDir = path.join(ATTACHMENTS_DIR, username, 'avatar')
+
+    // Remove old avatar files with different extensions
+    for (const f of fs.readdirSync(avatarDir)) {
+      if (f !== req.file.filename) fs.unlinkSync(path.join(avatarDir, f))
+    }
+
+    const avatarUrl = `/attachments/${username}/avatar/${req.file.filename}?v=${Date.now()}`
+    const users = readUsers()
+    if (users[username]) { users[username].avatarUrl = avatarUrl; writeUsers(users) }
+    res.json({ ok: true, avatarUrl })
+  })
+})
+
+app.delete('/api/auth/avatar', requireAuth, (req, res) => {
+  const username = req.user.username
+  const avatarDir = path.join(ATTACHMENTS_DIR, username, 'avatar')
+  if (fs.existsSync(avatarDir)) {
+    for (const f of fs.readdirSync(avatarDir)) fs.unlinkSync(path.join(avatarDir, f))
+  }
+  const users = readUsers()
+  if (users[username]) { delete users[username].avatarUrl; writeUsers(users) }
+  res.json({ ok: true })
+})
+
+app.post('/api/auth/change-password', requireAuth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {}
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both current and new password are required' })
+  if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' })
+
+  const users = readUsers()
+  const user = users[req.user.username]
+  if (!user) return res.status(404).json({ error: 'User not found' })
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash)
+  if (!valid) return res.status(401).json({ error: 'Current password is incorrect' })
+
+  users[req.user.username].passwordHash = await bcrypt.hash(newPassword, 12)
+  writeUsers(users)
+  res.json({ ok: true })
+})
+
+// --- Notes endpoints ---
+app.get('/api/notes', requireAuth, (req, res) => {
+  res.json(readAllNotes(req.user.username))
+})
+
+app.put('/api/notes/:key', requireAuth, (req, res) => {
   const { key } = req.params
   const { value } = req.body
-  const fp = keyToFile(key)
+  const fp = keyToFile(key, req.user.username)
   const content = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
   fs.writeFileSync(fp, content, 'utf8')
   res.json({ ok: true })
 })
 
-app.delete('/api/notes/:key', (req, res) => {
-  const fp = keyToFile(req.params.key)
+app.delete('/api/notes/:key', requireAuth, (req, res) => {
+  const fp = keyToFile(req.params.key, req.user.username)
   if (fs.existsSync(fp)) fs.unlinkSync(fp)
   res.json({ ok: true })
 })
 
-// --- Settings endpoints ---
-app.get('/api/settings', (req, res) => {
-  res.json(readSettings())
+// --- Settings endpoints (per-user) ---
+app.get('/api/settings', requireAuth, (req, res) => {
+  const users = readUsers()
+  const { attachmentLimitGB = null } = users[req.user.username] || {}
+  res.json({ attachmentLimitGB })
 })
 
-app.put('/api/settings', (req, res) => {
-  const current = readSettings()
-  const updated = { ...current, ...req.body }
-  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(updated, null, 2), 'utf8')
+app.put('/api/settings', requireAuth, (req, res) => {
+  const users = readUsers()
+  if (!users[req.user.username]) return res.status(404).json({ error: 'User not found' })
+  if ('attachmentLimitGB' in req.body) {
+    users[req.user.username].attachmentLimitGB = req.body.attachmentLimitGB
+  }
+  writeUsers(users)
   res.json({ ok: true })
 })
 
 // --- Attachment endpoints ---
 
-// GET /api/attachments/size — current attachments directory total size in bytes
-app.get('/api/attachments/size', (req, res) => {
-  res.json({ bytes: getAttachmentsDirSize() })
+app.get('/api/attachments/size', requireAuth, (req, res) => {
+  res.json({ bytes: getAttachmentsDirSize(userAttachmentsDir(req.user.username)) })
 })
 
-// POST /api/attachments/upload — multer reads scope+id from body fields before storage
-app.post('/api/attachments/upload', (req, res, next) => {
+app.post('/api/attachments/upload', requireAuth, (req, res) => {
   uploadAttachment.array('files')(req, res, err => {
     if (err) return res.status(400).json({ error: err.message })
 
-    const { attachmentLimitGB } = readSettings()
+    const { attachmentLimitGB } = readUsers()[req.user.username] || {}
     if (attachmentLimitGB) {
       const limitBytes = attachmentLimitGB * 1024 ** 3
-      const totalBytes = getAttachmentsDirSize()
+      const totalBytes = getAttachmentsDirSize(userAttachmentsDir(req.user.username))
       if (totalBytes > limitBytes) {
         for (const f of req.files || []) fs.existsSync(f.path) && fs.unlinkSync(f.path)
         const usedGB = (totalBytes / 1024 ** 3).toFixed(2)
@@ -195,37 +356,29 @@ app.post('/api/attachments/upload', (req, res, next) => {
       }
     }
 
+    const username = req.user.username
     const files = (req.files || []).map(f => ({
       filename: f.originalname,
-      url: attachmentUrl(req.body.scope, req.body.id, f.originalname),
+      url: attachmentUrl(username, req.body.scope, req.body.id, f.originalname),
     }))
     res.json({ ok: true, files })
   })
 })
 
-function attachmentUrl(scope, id, filename) {
-  if (id) return `/attachments/${scope}/${id}/${filename}`
-  return `/attachments/${scope}/${filename}`
-}
-
-function attachmentDir(scope, id) {
-  if (id) return path.join(ATTACHMENTS_DIR, scope, id)
-  return path.join(ATTACHMENTS_DIR, scope)
-}
-
-// GET /api/attachments — list ALL attachments across every scope/id
-app.get('/api/attachments', (req, res) => {
+app.get('/api/attachments', requireAuth, (req, res) => {
+  const username = req.user.username
+  const userDir = userAttachmentsDir(username)
   const results = []
-  if (!fs.existsSync(ATTACHMENTS_DIR)) return res.json(results)
+  if (!fs.existsSync(userDir)) return res.json(results)
 
-  for (const scope of fs.readdirSync(ATTACHMENTS_DIR)) {
-    const scopeDir = path.join(ATTACHMENTS_DIR, scope)
+  for (const scope of fs.readdirSync(userDir)) {
+    const scopeDir = path.join(userDir, scope)
     if (!fs.statSync(scopeDir).isDirectory()) continue
 
     if (scope === 'general') {
       for (const file of fs.readdirSync(scopeDir)) {
         if (fs.statSync(path.join(scopeDir, file)).isFile()) {
-          results.push({ filename: file, url: `/attachments/general/${file}`, scope: 'general', id: null })
+          results.push({ filename: file, url: attachmentUrl(username, 'general', null, file), scope: 'general', id: null })
         }
       }
     } else {
@@ -234,7 +387,7 @@ app.get('/api/attachments', (req, res) => {
         if (!fs.statSync(idDir).isDirectory()) continue
         for (const file of fs.readdirSync(idDir)) {
           if (fs.statSync(path.join(idDir, file)).isFile()) {
-            results.push({ filename: file, url: `/attachments/${scope}/${id}/${file}`, scope, id })
+            results.push({ filename: file, url: attachmentUrl(username, scope, id, file), scope, id })
           }
         }
       }
@@ -243,66 +396,65 @@ app.get('/api/attachments', (req, res) => {
   res.json(results)
 })
 
-// GET /api/attachments/general — list files for general scope
-app.get('/api/attachments/general', (req, res) => {
-  const dir = attachmentDir('general', '')
+app.get('/api/attachments/general', requireAuth, (req, res) => {
+  const dir = attachmentDir(req.user.username, 'general', '')
   if (!fs.existsSync(dir)) return res.json([])
+  const username = req.user.username
   const files = fs.readdirSync(dir).map(f => ({
     filename: f,
-    url: `/attachments/general/${f}`,
+    url: attachmentUrl(username, 'general', null, f),
   }))
   res.json(files)
 })
 
-// GET /api/attachments/:scope/:id — list files for scoped+id folder
-app.get('/api/attachments/:scope/:id', (req, res) => {
+app.get('/api/attachments/:scope/:id', requireAuth, (req, res) => {
   const { scope, id } = req.params
-  const dir = attachmentDir(scope, id)
+  const username = req.user.username
+  const dir = attachmentDir(username, scope, id)
   if (!fs.existsSync(dir)) return res.json([])
   const files = fs.readdirSync(dir).map(f => ({
     filename: f,
-    url: attachmentUrl(scope, id, f),
+    url: attachmentUrl(username, scope, id, f),
   }))
   res.json(files)
 })
 
-// DELETE /api/attachments/general/:filename
-app.delete('/api/attachments/general/:filename', (req, res) => {
-  const fp = path.join(attachmentDir('general', ''), req.params.filename)
+app.delete('/api/attachments/general/:filename', requireAuth, (req, res) => {
+  const fp = path.join(attachmentDir(req.user.username, 'general', ''), req.params.filename)
   if (fs.existsSync(fp)) fs.unlinkSync(fp)
   res.json({ ok: true })
 })
 
-// DELETE /api/attachments/:scope/:id/:filename
-app.delete('/api/attachments/:scope/:id/:filename', (req, res) => {
+app.delete('/api/attachments/:scope/:id/:filename', requireAuth, (req, res) => {
   const { scope, id, filename } = req.params
-  const fp = path.join(attachmentDir(scope, id), filename)
+  const fp = path.join(attachmentDir(req.user.username, scope, id), filename)
   if (fs.existsSync(fp)) fs.unlinkSync(fp)
   res.json({ ok: true })
 })
 
 // --- Export as zip ---
-app.get('/api/export', (req, res) => {
+app.get('/api/export', requireAuth, (req, res) => {
+  const username = req.user.username
   res.setHeader('Content-Disposition', 'attachment; filename="roa2-notes-backup.zip"')
   res.setHeader('Content-Type', 'application/zip')
 
   const archive = archiver('zip', { zlib: { level: 6 } })
   archive.pipe(res)
 
-  // Add notes JSON
-  const notes = readAllNotes()
+  const notes = readAllNotes(username)
   archive.append(JSON.stringify(notes, null, 2), { name: 'notes-export.json' })
 
-  // Add all attachments preserving folder structure
-  if (fs.existsSync(ATTACHMENTS_DIR)) {
-    archive.directory(ATTACHMENTS_DIR, 'attachments')
+  const userAttDir = userAttachmentsDir(username)
+  if (fs.existsSync(userAttDir)) {
+    archive.directory(userAttDir, 'attachments')
   }
 
   archive.finalize()
 })
 
 // --- Import from json or zip ---
-app.post('/api/import', (req, res) => {
+app.post('/api/import', requireAuth, (req, res) => {
+  const username = req.user.username
   const tmpDir = path.join(__dirname, 'tmp-import')
   fs.mkdirSync(tmpDir, { recursive: true })
 
@@ -333,20 +485,19 @@ app.post('/api/import', (req, res) => {
 
           if (entryName === 'notes-export.json') {
             const notes = JSON.parse(entry.getData().toString('utf8'))
-            notesCount = writeNotes(notes)
+            notesCount = writeNotes(notes, username)
           } else if (entryName.startsWith('attachments/')) {
             const relPath = entryName.slice('attachments/'.length)
-            const destPath = path.join(ATTACHMENTS_DIR, relPath)
+            const destPath = path.join(userAttachmentsDir(username), relPath)
             fs.mkdirSync(path.dirname(destPath), { recursive: true })
             fs.writeFileSync(destPath, entry.getData())
             attachmentsCount++
           }
         }
       } else {
-        // JSON import
         const raw = fs.readFileSync(filePath, 'utf8')
         const notes = JSON.parse(raw)
-        notesCount = writeNotes(notes)
+        notesCount = writeNotes(notes, username)
       }
 
       fs.unlinkSync(filePath)
@@ -358,7 +509,7 @@ app.post('/api/import', (req, res) => {
   })
 })
 
-// --- Update endpoints ---
+// --- Update endpoints (unauthenticated — system level) ---
 
 app.get('/api/update/check', async (req, res) => {
   try {

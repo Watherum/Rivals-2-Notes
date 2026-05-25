@@ -4,6 +4,7 @@ import { CHARACTERS, characterWikiUrl, characterDataUrl } from '../data/characte
 import { useUserMains, useMainNote } from '../hooks/useNotes'
 import WikiLink from './WikiLink'
 import AttachmentSection from './AttachmentSection'
+import MarkdownEditor from './MarkdownEditor'
 
 function MainCharacterSection({ char }) {
   const [note, setNote, loaded] = useMainNote(char.id)
@@ -34,12 +35,12 @@ function MainCharacterSection({ char }) {
         </div>
       </div>
       <div className="p-3">
-        <textarea
+        <MarkdownEditor
           value={note}
-          onChange={e => setNote(e.target.value)}
+          onChange={setNote}
           placeholder={loaded ? `Things to work on, goals, habits to build with ${char.name}...` : 'Loading...'}
           disabled={!loaded}
-          className="w-full h-32 bg-[#1a1a2e] text-white rounded p-3 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-[#e94560] placeholder-gray-500 disabled:opacity-50"
+          className="h-32"
         />
         <AttachmentSection scope="mains" id={char.id} />
       </div>

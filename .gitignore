@@ -25,6 +25,10 @@ attachments/
 settings.json
 tmp-import/
 
+# Secrets and user data — never commit these
+jwt-secret.txt
+users.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

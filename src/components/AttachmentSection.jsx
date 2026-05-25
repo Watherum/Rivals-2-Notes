@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Lightbox from './Lightbox'
 import ConfirmModal from './ConfirmModal'
+import { authFetch } from '../utils/api'
 
 const IMAGE_EXTS = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i
 const VIDEO_EXTS = /\.(mp4|webm|mov|avi|mkv)$/i
@@ -24,7 +25,7 @@ export default function AttachmentSection({ scope, id }) {
   const inputRef = useRef(null)
 
   useEffect(() => {
-    fetch(apiUrl(scope, id))
+    authFetch(apiUrl(scope, id))
       .then(r => r.json())
       .then(setFiles)
       .catch(() => {})
@@ -41,7 +42,7 @@ export default function AttachmentSection({ scope, id }) {
     selected.forEach(f => form.append('files', f))
 
     try {
-      const res = await fetch('/api/attachments/upload', { method: 'POST', body: form })
+      const res = await authFetch('/api/attachments/upload', { method: 'POST', body: form })
       const data = await res.json()
       if (!res.ok) {
         setUploadError(data.error || 'Upload failed.')
@@ -58,7 +59,7 @@ export default function AttachmentSection({ scope, id }) {
   async function confirmDelete() {
     const filename = confirmFile
     setConfirmFile(null)
-    await fetch(deleteUrl(scope, id, filename), { method: 'DELETE' })
+    await authFetch(deleteUrl(scope, id, filename), { method: 'DELETE' })
     setFiles(prev => prev.filter(f => f.filename !== filename))
   }
 
