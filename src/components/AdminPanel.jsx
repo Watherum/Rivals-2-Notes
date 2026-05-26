@@ -207,6 +207,7 @@ export default function AdminPanel() {
   const [updateInfo, setUpdateInfo] = useState(null)
   const [updateError, setUpdateError] = useState(null)
   const [downloadProgress, setDownloadProgress] = useState(0)
+  const [updateAssetName, setUpdateAssetName] = useState(null)
   const pollRef = useRef(null)
 
   const loadUsers = useCallback(async () => {
@@ -230,6 +231,7 @@ export default function AdminPanel() {
       } else if (data.status === 'ready') {
         setUpdatePhase('ready')
         setDownloadProgress(100)
+        if (data.assetName) setUpdateAssetName(data.assetName)
       }
     }).catch(() => {})
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
@@ -245,6 +247,7 @@ export default function AdminPanel() {
         if (data.status === 'ready') {
           clearInterval(pollRef.current)
           setUpdatePhase('ready')
+          if (data.assetName) setUpdateAssetName(data.assetName)
         } else if (data.status === 'error') {
           clearInterval(pollRef.current)
           setUpdateError(data.error || 'Download failed.')
@@ -281,7 +284,11 @@ export default function AdminPanel() {
     }
   }
 
-  async function restartAndUpdate() {
+  async function openUpdateFolder() {
+    await fetch('/api/update/open-folder', { method: 'POST' })
+  }
+
+  async function exitAndUpdate() {
     await fetch('/api/update/restart', { method: 'POST' })
   }
 
@@ -358,7 +365,7 @@ export default function AdminPanel() {
 
       <section className="bg-[#16213e] rounded-lg p-5 space-y-3">
         <h2 className="text-lg font-semibold text-white">Check for Updates</h2>
-        <p className="text-sm text-gray-400">Check GitHub for the latest version of RoA2 Notes. If an update is found, it will be downloaded automatically and you'll be prompted to restart.</p>
+        <p className="text-sm text-gray-400">Check GitHub for the latest version of RoA2 Notes. If an update is found, it will be downloaded to the same folder as the current exe — then close this app and run the new file to update.</p>
 
         {updateInfo && (
           <p className="text-sm text-gray-400">
@@ -404,9 +411,15 @@ export default function AdminPanel() {
         )}
 
         {updatePhase === 'ready' && (
-          <div className="space-y-2">
-            <p className="text-sm text-green-400">Update downloaded. The app will restart to apply it.</p>
-            <button onClick={restartAndUpdate} className={btnClass}>Restart & Update</button>
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm text-green-400">Update downloaded{updateAssetName ? `: ${updateAssetName}` : '.'}</p>
+              <p className="text-sm text-gray-400 mt-1">Close this app and run the new file from the same folder to complete the update.</p>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={openUpdateFolder} className={btnClass}>Open Folder</button>
+              <button onClick={exitAndUpdate} className={btnClass}>Exit App</button>
+            </div>
           </div>
         )}
 

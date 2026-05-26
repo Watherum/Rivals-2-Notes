@@ -28,7 +28,7 @@ function normalizeTag(tag) {
   return tag.replace(/^v/i, '').toLowerCase()
 }
 
-let updateState = { status: 'idle', progress: 0, error: null, latestVersion: null, downloadUrl: null }
+let updateState = { status: 'idle', progress: 0, error: null, latestVersion: null, downloadUrl: null, assetName: null, updatePath: null }
 const NOTES_DIR = path.join(DATA_DIR, 'notes')
 const ATTACHMENTS_DIR = path.join(DATA_DIR, 'attachments')
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json')
@@ -580,6 +580,7 @@ app.get('/api/update/check', async (req, res) => {
     if (hasUpdate && downloadUrl) {
       updateState.latestVersion = latestVersion
       updateState.downloadUrl = downloadUrl
+      updateState.assetName = exeAsset.name
     }
 
     res.json({
@@ -618,7 +619,8 @@ app.post('/api/update/download', async (req, res) => {
   ;(async () => {
     try {
       const exeDir = process.env.PORTABLE_EXECUTABLE_DIR
-      const updatePath = path.join(exeDir, 'RoA2 Notes-update.exe')
+      const updatePath = path.join(exeDir, updateState.assetName)
+      updateState.updatePath = updatePath
 
       const dlResponse = await fetch(updateState.downloadUrl)
       if (!dlResponse.ok) throw new Error(`Download failed (HTTP ${dlResponse.status})`)
@@ -654,26 +656,14 @@ app.post('/api/update/restart', (req, res) => {
   if (updateState.status !== 'ready') {
     return res.status(400).json({ error: 'Update not ready.' })
   }
-
-  const exeDir = process.env.PORTABLE_EXECUTABLE_DIR
-  const currentExe = process.env.PORTABLE_EXECUTABLE_FILE
-  const updateExe = path.join(exeDir, 'RoA2 Notes-update.exe')
-  const scriptPath = path.join(os.tmpdir(), `roa2-update-${Date.now()}.cmd`)
-
-  const script = [
-    '@echo off',
-    'timeout /t 2 /nobreak > nul',
-    `move /Y "${updateExe}" "${currentExe}"`,
-    `start "" "${currentExe}"`,
-    'del "%~f0"',
-  ].join('\r\n')
-
-  fs.writeFileSync(scriptPath, script, 'utf8')
-
-  spawnProcess('cmd.exe', ['/c', scriptPath], { detached: true, stdio: 'ignore' }).unref()
-
   res.json({ ok: true })
   setTimeout(() => process.exit(0), 500)
+})
+
+app.post('/api/update/open-folder', (req, res) => {
+  if (!updateState.updatePath) return res.status(400).json({ error: 'No update path available.' })
+  spawnProcess('explorer.exe', ['/select,', updateState.updatePath], { detached: true, stdio: 'ignore' }).unref()
+  res.json({ ok: true })
 })
 
 // --- Admin routes ---
