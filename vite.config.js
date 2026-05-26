@@ -33,6 +33,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png}'],
         globIgnores: ['**/win-unpacked/**', '**/node_modules/**'],
         runtimeCaching: [],
+        skipWaiting: true,
+        clientsClaim: true,
       },
     }),
   ],

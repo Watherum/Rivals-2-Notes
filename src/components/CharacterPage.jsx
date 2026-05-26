@@ -1,14 +1,36 @@
 import { useParams, Link } from 'react-router-dom'
 import { CHARACTERS, characterWikiUrl, characterDataUrl } from '../data/characters'
-import { useCharacterNote } from '../hooks/useNotes'
+import { useCharacterNote, usePlayerList, usePlayerNote } from '../hooks/useNotes'
 import WikiLink from './WikiLink'
 import AttachmentSection from './AttachmentSection'
 import MarkdownEditor from './MarkdownEditor'
+
+function CharacterPlayerCard({ player }) {
+  const [note, setNote, loaded] = usePlayerNote(player.id)
+  return (
+    <div className="bg-[#16213e] rounded-lg overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#0f3460]">
+        <span className="text-white font-medium">{player.name}</span>
+      </div>
+      <div className="p-3">
+        <MarkdownEditor
+          value={note}
+          onChange={setNote}
+          placeholder={loaded ? `Notes on playing against ${player.name}...` : 'Loading...'}
+          disabled={!loaded}
+          className="h-32"
+        />
+      </div>
+    </div>
+  )
+}
 
 export default function CharacterPage() {
   const { characterId } = useParams()
   const character = CHARACTERS.find(c => c.id === characterId)
   const [note, setNote, loaded] = useCharacterNote(characterId)
+  const [players] = usePlayerList()
+  const matchingPlayers = players.filter(p => p.mainCharId === characterId)
 
   if (!character) {
     return (
@@ -54,6 +76,15 @@ export default function CharacterPage() {
       >
         View {character.name} Full Wiki Page
       </WikiLink>
+
+      {matchingPlayers.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-white">Players who main {character.name}</h2>
+          {matchingPlayers.map(player => (
+            <CharacterPlayerCard key={player.id} player={player} />
+          ))}
+        </section>
+      )}
     </div>
   )
 }

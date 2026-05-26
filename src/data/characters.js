@@ -15,7 +15,7 @@ export const CHARACTERS = [
   { id: 'olympia',   name: 'Olympia',    wikiSlug: 'Olympia',    portraitUrl: '/portraits/olympia.png',    stockUrl: '/stocks/olympia.png' },
   { id: 'slade',     name: 'Slade',      wikiSlug: 'Slade',      portraitUrl: '/portraits/slade.png',      stockUrl: '/stocks/slade.png' },
   { id: 'lareina',   name: 'La Reina',   wikiSlug: 'La_Reina',   portraitUrl: '/portraits/lareina.png',    stockUrl: '/stocks/lareina.png' },
-]
+].sort((a, b) => a.name.localeCompare(b.name))
 
 const WIKI_BASE = 'https://dragdown.wiki/wiki/RoA2'
 

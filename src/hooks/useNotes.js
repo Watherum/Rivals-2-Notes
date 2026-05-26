@@ -70,6 +70,14 @@ export function useUserMains() {
   return useServerNote('user_mains', [])
 }
 
+export function usePlayerList() {
+  return useServerNote('player_list', [])
+}
+
+export function usePlayerNote(playerId) {
+  return useServerNote(`player_notes_${playerId}`, '')
+}
+
 export function exportNotes() {
   const token = getToken()
   const a = document.createElement('a')

@@ -3,6 +3,7 @@ import { Routes, Route, Link, useLocation, Navigate, Outlet } from 'react-router
 import CharacterGrid from './components/CharacterGrid'
 import CharacterPage from './components/CharacterPage'
 import MyMains from './components/MyMains'
+import PlayerNotes from './components/PlayerNotes'
 import GameNotes from './components/GameNotes'
 import ManageData from './components/ManageData'
 import Resources from './components/Resources'
@@ -10,9 +11,11 @@ import Gallery from './components/Gallery'
 import Login from './components/Login'
 import Signup from './components/Signup'
 import { useAuth } from './contexts/AuthContext'
+import { useVersionCheck } from './hooks/useVersionCheck'
 
 const LINKS = [
   { to: '/',          label: 'Roster' },
+  { to: '/players',   label: 'Player Notes' },
   { to: '/mains',     label: 'My Mains' },
   { to: '/notes',     label: 'Game Notes' },
   { to: '/gallery',   label: 'Gallery' },
@@ -155,6 +158,7 @@ function ProtectedLayout() {
 }
 
 export default function App() {
+  useVersionCheck()
   return (
     <Routes>
       <Route path="/login"  element={<Login />} />
@@ -162,6 +166,7 @@ export default function App() {
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<CharacterGrid />} />
         <Route path="/character/:characterId" element={<CharacterPage />} />
+        <Route path="/players"   element={<PlayerNotes />} />
         <Route path="/mains"     element={<MyMains />} />
         <Route path="/notes"     element={<GameNotes />} />
         <Route path="/gallery"   element={<Gallery />} />

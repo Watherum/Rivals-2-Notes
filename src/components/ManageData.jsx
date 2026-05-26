@@ -307,7 +307,7 @@ export default function ManageData() {
 
       <section className="bg-[#16213e] rounded-lg p-5 space-y-3">
         <h2 className="text-lg font-semibold text-white">Import Notes</h2>
-        <p className="text-sm text-gray-400">Restore notes and attachments from a previously exported backup. Accepts a <code className="text-gray-300">.zip</code> (notes + attachments) or a legacy <code className="text-gray-300">.json</code> file. Existing data with matching keys will be overwritten.</p>
+        <p className="text-sm text-gray-400">Restore notes and attachments from a previously exported backup. Accepts a <code className="text-gray-300">.zip</code> (notes + attachments) or a legacy <code className="text-gray-300">.json</code> file. Imported notes are appended to existing ones; mains and player lists are merged.</p>
         <button
           onClick={() => importRef.current.click()}
           className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors"

@@ -92,7 +92,7 @@ Each account's notes and attachments are completely separate. Users can only see
 ## Features
 
 ### Roster
-The home screen shows all 16 characters with their portraits. Click any character to open their notes page.
+The home screen shows all 16 characters with their portraits in alphabetical order. Click any character to open their notes page.
 
 ### Character Notes
 Each character page has:
@@ -100,8 +100,17 @@ Each character page has:
 - An **attachments section** — upload images or video clips relevant to that character
 - **Frame Data** button — opens the character's data page on dragdown.wiki
 - **Full Wiki Page** button — opens the character's full wiki page
+- **Player notes** — if any players in your Player Notes list main this character, their note cards appear at the bottom of the page for quick reference
 
 Notes auto-save 500ms after you stop typing.
+
+### Player Notes
+Track notes on specific opponents. Each player entry has:
+- A **name** field (editable at any time)
+- A **main character selector** — pick from the full roster; if set, the player's note card also appears on that character's notes page
+- A **notes area** with full markdown formatting for anything about playing against that person
+
+Players are listed on the Player Notes page and can be deleted from there. Adding a player with a main automatically surfaces their card on the relevant character page.
 
 ### My Mains
 Select your main characters from a collapsible grid (with stock icons). Each selected main gets its own notes section for goals, habits to build, and things to work on — **separate from the roster notes** — plus its own attachment section. Quick links to the wiki page and frame data are included in each panel.
@@ -134,7 +143,7 @@ Quick links to useful external sites:
 ### Manage Data
 - **Profile Photo** — upload or remove your profile photo. Appears as a circle next to your username in the nav bar. Accepts any image format, up to 5 MB.
 - **Export** — downloads your notes and attachments as a single `roa2-notes-backup.zip` file
-- **Import** — restores notes and attachments from a `.zip` backup, or notes only from a legacy `.json` backup
+- **Import** — restores notes and attachments from a `.zip` backup, or notes only from a legacy `.json` backup. Imported notes are **appended** to existing ones (joined with a `---` separator); mains and player lists are merged rather than replaced
 - **Change Password** — update your password after confirming your current one. New password must be at least 6 characters.
 - **Attachment Storage** — set a personal size limit (in GB) for your attachments. Uploads that would exceed your limit are rejected. Each user sets their own limit independently. Leave blank for no limit.
 
@@ -154,6 +163,8 @@ Stored as plain text files under `notes/{username}/`:
 | `notes/alice/main-zetterburn.txt` | Alice's Zetterburn mains notes |
 | `notes/alice/game-general.txt` | Alice's game-wide notes |
 | `notes/alice/mains.json` | Alice's selected main characters |
+| `notes/alice/player-list.json` | Alice's player entries (name, id, main character) |
+| `notes/alice/player-notes-{id}.txt` | Alice's notes on a specific player |
 
 Each account's files are fully separated by subfolder. Files placed directly in `notes/` with no username subfolder are ignored.
 
@@ -181,7 +192,7 @@ Go to **Manage Data → Choose Backup File** and select either:
 - A `.zip` file (restores notes + attachments)
 - A legacy `.json` file (restores notes only)
 
-Imported data is written into your account's folders. Existing data with matching keys will be overwritten.
+Imported notes are appended to any existing content using a `---` separator, so nothing is lost. Mains and player lists are merged — existing entries are kept and new ones are added alongside them.
 
 ---
 

@@ -46,6 +46,8 @@ function getJwtSecret() {
 }
 const JWT_SECRET = getJwtSecret()
 
+const SERVER_START = Date.now()
+
 const app = express()
 app.use(cors())
 app.use(express.json())
@@ -131,8 +133,10 @@ function userAttachmentsDir(username) {
 function keyToFile(key, username) {
   const base = userNotesDir(username)
   if (key === 'user_mains') return path.join(base, 'mains.json')
+  if (key === 'player_list') return path.join(base, 'player-list.json')
   if (key === 'mains_general') return path.join(base, 'mains-general.txt')
   if (key === 'game_general') return path.join(base, 'game-general.txt')
+  if (key.startsWith('player_notes_')) return path.join(base, 'player-notes-' + key.slice(13) + '.txt')
   if (key.startsWith('main_notes_')) return path.join(base, 'main-' + key.slice(11) + '.txt')
   if (key.startsWith('notes_')) return path.join(base, key.slice(6) + '.txt')
   if (key.startsWith('matchup_')) return path.join(base, 'matchup-' + key.slice(8).replace('_vs_', '-vs-') + '.txt')
@@ -141,9 +145,11 @@ function keyToFile(key, username) {
 
 function fileToKey(filename) {
   if (filename === 'mains.json') return 'user_mains'
+  if (filename === 'player-list.json') return 'player_list'
   if (filename === 'mains-general.txt') return 'mains_general'
   if (filename === 'game-general.txt') return 'game_general'
   const base = filename.replace(/\.(txt|json)$/, '')
+  if (base.startsWith('player-notes-')) return 'player_notes_' + base.slice(13)
   if (base.startsWith('matchup-')) return 'matchup_' + base.slice(8).replace('-vs-', '_vs_')
   if (base.startsWith('main-')) return 'main_notes_' + base.slice(5)
   return 'notes_' + base
@@ -162,11 +168,37 @@ function readAllNotes(username) {
   return notes
 }
 
-function writeNotes(notes, username) {
+function mergeNoteValue(existing, incoming, key) {
+  if (key === 'user_mains') {
+    const a = Array.isArray(existing) ? existing : []
+    const b = Array.isArray(incoming) ? incoming : []
+    return [...new Set([...a, ...b])]
+  }
+  if (key === 'player_list') {
+    const a = Array.isArray(existing) ? existing : []
+    const b = Array.isArray(incoming) ? incoming : []
+    const existingIds = new Set(a.map(p => p.id))
+    return [...a, ...b.filter(p => !existingIds.has(p.id))]
+  }
+  // String notes: append with separator if both have content
+  const existingStr = typeof existing === 'string' ? existing.trim() : ''
+  const incomingStr = typeof incoming === 'string' ? incoming.trim() : ''
+  if (existingStr && incomingStr) return existingStr + '\n\n---\n\n' + incomingStr
+  return incomingStr || existingStr
+}
+
+function writeNotes(notes, username, append = false) {
   let count = 0
   for (const [key, value] of Object.entries(notes)) {
     const fp = keyToFile(key, username)
-    const content = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+    let merged = value
+    if (append && fs.existsSync(fp)) {
+      const raw = fs.readFileSync(fp, 'utf8')
+      let existing
+      try { existing = JSON.parse(raw) } catch { existing = raw }
+      merged = mergeNoteValue(existing, value, key)
+    }
+    const content = typeof merged === 'string' ? merged : JSON.stringify(merged, null, 2)
     fs.writeFileSync(fp, content, 'utf8')
     count++
   }
@@ -217,6 +249,8 @@ app.post('/api/auth/login', async (req, res) => {
   const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '90d' })
   res.json({ ok: true, token, username })
 })
+
+app.get('/api/version', (req, res) => res.json({ v: SERVER_START }))
 
 app.get('/api/auth/me', requireAuth, (req, res) => {
   const users = readUsers()
@@ -479,7 +513,7 @@ app.post('/api/import', requireAuth, (req, res) => {
 
           if (entryName === 'notes-export.json') {
             const notes = JSON.parse(entry.getData().toString('utf8'))
-            notesCount = writeNotes(notes, username)
+            notesCount = writeNotes(notes, username, true)
           } else if (entryName.startsWith('attachments/')) {
             const relPath = entryName.slice('attachments/'.length)
             const destPath = path.join(userAttachmentsDir(username), relPath)
@@ -491,7 +525,7 @@ app.post('/api/import', requireAuth, (req, res) => {
       } else {
         const raw = fs.readFileSync(filePath, 'utf8')
         const notes = JSON.parse(raw)
-        notesCount = writeNotes(notes, username)
+        notesCount = writeNotes(notes, username, true)
       }
 
       fs.unlinkSync(filePath)
