@@ -92,7 +92,7 @@ Admins can manage other users from the **Admin** page (visible in the nav bar fo
 - **Set storage limits** — set or clear the attachment storage quota for any user
 - **Reset password** — set a new password for any user (useful if they've forgotten theirs). The user can then log in with the new password and change it themselves via Manage Data → Change Password
 - **Delete users** — permanently removes a user's account, notes, and all attachments
-- **Check for Updates** — check GitHub for a new version and download/install it (same flow as before, now admin-only)
+- **Check for Updates** — check GitHub for a new version and download it to the same folder as the current exe. Once downloaded, an **Open Folder** button reveals the new file in Explorer; click **Exit App** to close the current version, then run the new exe to complete the update (packaged `.exe` only)
 
 To grant admin access, open `users.json` and add `"isAdmin": true` to the user's entry:
 
@@ -133,7 +133,7 @@ Track notes on specific opponents. Each player entry has:
 - A **character selector** — pick any number of characters they play; each selected character gets its own separate notes area. If no characters are selected, a single general notes area is shown instead
 - Notes auto-save 500ms after you stop typing
 
-Player cards are **collapsible** — click the arrow on the left of the header to expand or collapse. On wider screens, cards are shown in a multi-column grid to make use of the extra space.
+Player cards are **collapsible** — click the arrow on the left of the header to expand or collapse. Within a card, each individual character notes section is also collapsible via its own header toggle. On wider screens, cards are shown in a multi-column grid to make use of the extra space.
 
 A **search bar** at the top of the page lets you filter players by name in real time.
 
@@ -179,7 +179,7 @@ Quick links to useful external sites:
 ### Admin Panel
 Admin-only page accessible from the nav bar. Includes all user management tools plus:
 - **Reset Password** — set a new temporary password for any user (for forgotten passwords). The user logs in with it and changes it via Manage Data → Change Password.
-- **Check for Updates** — check GitHub for the latest version; downloads and installs the update automatically (packaged `.exe` only) or links to the GitHub release page.
+- **Check for Updates** — check GitHub for the latest version. On packaged `.exe`: downloads the new exe (keeping its versioned filename from GitHub) to the same folder, then shows **Open Folder** to reveal it in Explorer and **Exit App** to close the current version — run the new file to finish updating. On non-packaged installs: links to the GitHub release page.
 
 ---
 
