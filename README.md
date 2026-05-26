@@ -85,6 +85,29 @@ The app requires an account to use. On first launch you'll be taken to the sign-
 
 Each account's notes and attachments are completely separate. Users can only see and access their own data. Accounts are stored in `users.json` alongside the rest of the app's data.
 
+### Admin Accounts
+
+Admins can manage other users from the **Admin** page (visible in the nav bar for admin accounts only):
+
+- **Set storage limits** — set or clear the attachment storage quota for any user
+- **Reset password** — set a new password for any user (useful if they've forgotten theirs). The user can then log in with the new password and change it themselves via Manage Data → Change Password
+- **Delete users** — permanently removes a user's account, notes, and all attachments
+- **Check for Updates** — check GitHub for a new version and download/install it (same flow as before, now admin-only)
+
+To grant admin access, open `users.json` and add `"isAdmin": true` to the user's entry:
+
+```json
+{
+  "yourUsername": {
+    "passwordHash": "...",
+    "createdAt": "...",
+    "isAdmin": true
+  }
+}
+```
+
+Then sign out and back in — the Admin link will appear in the nav bar.
+
 > **Port forwarding note:** If you expose the app to the internet via port forwarding, each person accessing it needs their own account. See the port forwarding section below.
 
 ---
@@ -146,6 +169,11 @@ Quick links to useful external sites:
 - **Import** — restores notes and attachments from a `.zip` backup, or notes only from a legacy `.json` backup. Imported notes are **appended** to existing ones (joined with a `---` separator); mains and player lists are merged rather than replaced
 - **Change Password** — update your password after confirming your current one. New password must be at least 6 characters.
 - **Attachment Storage** — set a personal size limit (in GB) for your attachments. Uploads that would exceed your limit are rejected. Each user sets their own limit independently. Leave blank for no limit.
+
+### Admin Panel
+Admin-only page accessible from the nav bar. Includes all user management tools plus:
+- **Reset Password** — set a new temporary password for any user (for forgotten passwords). The user logs in with it and changes it via Manage Data → Change Password.
+- **Check for Updates** — check GitHub for the latest version; downloads and installs the update automatically (packaged `.exe` only) or links to the GitHub release page.
 
 ---
 

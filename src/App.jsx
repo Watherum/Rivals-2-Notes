@@ -6,6 +6,7 @@ import MyMains from './components/MyMains'
 import PlayerNotes from './components/PlayerNotes'
 import GameNotes from './components/GameNotes'
 import ManageData from './components/ManageData'
+import AdminPanel from './components/AdminPanel'
 import Resources from './components/Resources'
 import Gallery from './components/Gallery'
 import Login from './components/Login'
@@ -47,6 +48,11 @@ function NavBar() {
               {l.label}
             </Link>
           ))}
+          {user?.isAdmin && (
+            <Link to="/admin" className={`text-sm font-medium transition-colors ${linkClass('/admin')}`}>
+              Admin
+            </Link>
+          )}
           <div className="flex items-center gap-3 border-l border-[#0f3460] pl-6 ml-2">
             {user?.avatarUrl ? (
               <img src={user.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-[#0f3460]" />
@@ -90,6 +96,15 @@ function NavBar() {
               {l.label}
             </Link>
           ))}
+          {user?.isAdmin && (
+            <Link
+              to="/admin"
+              onClick={() => setMenuOpen(false)}
+              className={`px-4 py-3 text-sm font-medium border-b border-[#0f3460] transition-colors ${linkClass('/admin')}`}
+            >
+              Admin
+            </Link>
+          )}
           <div className="px-4 py-3 flex items-center justify-between border-b border-[#0f3460] last:border-0">
             <div className="flex items-center gap-2">
               {user?.avatarUrl ? (
@@ -157,6 +172,12 @@ function ProtectedLayout() {
   )
 }
 
+function AdminGuard() {
+  const { user } = useAuth()
+  if (!user?.isAdmin) return <Navigate to="/" replace />
+  return <AdminPanel />
+}
+
 export default function App() {
   useVersionCheck()
   return (
@@ -172,6 +193,7 @@ export default function App() {
         <Route path="/gallery"   element={<Gallery />} />
         <Route path="/resources" element={<Resources />} />
         <Route path="/manage"    element={<ManageData />} />
+        <Route path="/admin"     element={<AdminGuard />} />
       </Route>
     </Routes>
   )

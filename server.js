@@ -80,6 +80,12 @@ function requireAuth(req, res, next) {
   }
 }
 
+function requireAdmin(req, res, next) {
+  const users = readUsers()
+  if (!users[req.user.username]?.isAdmin) return res.status(403).json({ error: 'Forbidden' })
+  next()
+}
+
 // --- Multer for attachment uploads ---
 // Note: destination reads req.user.username which is set by requireAuth before multer runs
 const attachmentStorage = multer.diskStorage({
@@ -250,12 +256,12 @@ app.post('/api/auth/login', async (req, res) => {
   res.json({ ok: true, token, username })
 })
 
-app.get('/api/version', (req, res) => res.json({ v: SERVER_START }))
+app.get('/api/version', (req, res) => res.json({ v: CURRENT_VERSION }))
 
 app.get('/api/auth/me', requireAuth, (req, res) => {
   const users = readUsers()
-  const { avatarUrl = null } = users[req.user.username] || {}
-  res.json({ username: req.user.username, avatarUrl })
+  const { avatarUrl = null, isAdmin = false } = users[req.user.username] || {}
+  res.json({ username: req.user.username, avatarUrl, isAdmin: !!isAdmin })
 })
 
 const avatarUpload = multer({
@@ -668,6 +674,55 @@ app.post('/api/update/restart', (req, res) => {
 
   res.json({ ok: true })
   setTimeout(() => process.exit(0), 500)
+})
+
+// --- Admin routes ---
+app.get('/api/admin/users', requireAuth, requireAdmin, (req, res) => {
+  const users = readUsers()
+  const list = Object.entries(users).map(([username, u]) => ({
+    username,
+    createdAt: u.createdAt || null,
+    isAdmin: !!u.isAdmin,
+    attachmentLimitGB: u.attachmentLimitGB ?? null,
+    usedBytes: getAttachmentsDirSize(userAttachmentsDir(username)),
+  }))
+  res.json(list)
+})
+
+app.put('/api/admin/users/:username/limit', requireAuth, requireAdmin, (req, res) => {
+  const { username } = req.params
+  const users = readUsers()
+  if (!users[username]) return res.status(404).json({ error: 'User not found' })
+  const limitGB = req.body.limitGB ?? null
+  users[username].attachmentLimitGB = (limitGB && parseFloat(limitGB) > 0) ? parseFloat(limitGB) : null
+  writeUsers(users)
+  res.json({ ok: true })
+})
+
+app.post('/api/admin/users/:username/reset-password', requireAuth, requireAdmin, async (req, res) => {
+  const { username } = req.params
+  const { newPassword } = req.body || {}
+  if (!newPassword || newPassword.length < 6)
+    return res.status(400).json({ error: 'Password must be at least 6 characters' })
+  const users = readUsers()
+  if (!users[username]) return res.status(404).json({ error: 'User not found' })
+  users[username].passwordHash = await bcrypt.hash(newPassword, 12)
+  writeUsers(users)
+  res.json({ ok: true })
+})
+
+app.delete('/api/admin/users/:username', requireAuth, requireAdmin, (req, res) => {
+  const { username } = req.params
+  if (username === req.user.username) return res.status(400).json({ error: 'Cannot delete your own account' })
+  const users = readUsers()
+  if (!users[username]) return res.status(404).json({ error: 'User not found' })
+  const notesDir = path.join(NOTES_DIR, username)
+  const attDir = path.join(ATTACHMENTS_DIR, username)
+  if (fs.existsSync(notesDir)) fs.rmSync(notesDir, { recursive: true, force: true })
+  if (fs.existsSync(attDir)) fs.rmSync(attDir, { recursive: true, force: true })
+  delete users[username]
+  writeUsers(users)
+  res.json({ ok: true })
 })
 
 // SPA fallback for production

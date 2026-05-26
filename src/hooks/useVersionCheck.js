@@ -1,19 +1,15 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 
 const INTERVAL_MS = 60_000
 
 export function useVersionCheck() {
-  const baseline = useRef(null)
-
   useEffect(() => {
     async function check() {
       try {
         const res = await fetch('/api/version')
         if (!res.ok) return
         const { v } = await res.json()
-        if (baseline.current === null) {
-          baseline.current = v
-        } else if (baseline.current !== v) {
+        if (v !== __APP_VERSION__) {
           window.location.reload()
         }
       } catch {
@@ -21,7 +17,6 @@ export function useVersionCheck() {
       }
     }
 
-    check()
     const id = setInterval(check, INTERVAL_MS)
     return () => clearInterval(id)
   }, [])

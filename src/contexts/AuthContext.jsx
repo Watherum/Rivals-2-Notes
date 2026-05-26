@@ -15,7 +15,7 @@ export function AuthProvider({ children }) {
     fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (data?.username) setUser({ username: data.username, avatarUrl: data.avatarUrl || null })
+        if (data?.username) setUser({ username: data.username, avatarUrl: data.avatarUrl || null, isAdmin: !!data.isAdmin })
         else clearToken()
       })
       .catch(() => clearToken())

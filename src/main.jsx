@@ -8,6 +8,8 @@ import { AuthProvider } from './contexts/AuthContext.jsx'
 
 registerSW({ immediate: true })
 
+document.title = `RoA 2 Notes v${__APP_VERSION__}`
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
