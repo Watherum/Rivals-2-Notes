@@ -1,13 +1,22 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CHARACTERS } from '../data/characters'
-import { usePlayerList, usePlayerNote } from '../hooks/useNotes'
+import { usePlayerList, usePlayerNote, usePlayerCharNote } from '../hooks/useNotes'
 import { authFetch } from '../utils/api'
 import MarkdownEditor from './MarkdownEditor'
 import ConfirmModal from './ConfirmModal'
 
-function CharacterPicker({ selectedId, onSelect }) {
-  const [open, setOpen] = useState(false)
-  const selected = CHARACTERS.find(c => c.id === selectedId)
+function CharacterPicker({ selectedIds = [], onSelect, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  function toggle(charId) {
+    if (selectedIds.includes(charId)) {
+      onSelect(selectedIds.filter(id => id !== charId))
+    } else {
+      onSelect([...selectedIds, charId])
+    }
+  }
+
+  const selectedChars = CHARACTERS.filter(c => selectedIds.includes(c.id))
 
   return (
     <div className="border border-[#0f3460] rounded-lg overflow-hidden">
@@ -15,27 +24,34 @@ function CharacterPicker({ selectedId, onSelect }) {
         onClick={() => setOpen(v => !v)}
         className="w-full flex justify-between items-center px-3 py-2 bg-[#1a1a2e] text-sm hover:bg-[#0f3460] transition-colors"
       >
-        <span className="text-gray-300">
-          {selected ? (
-            <span className="flex items-center gap-2 text-white">
-              {selected.stockUrl && <img src={selected.stockUrl} alt="" className="w-5 h-5" />}
-              {selected.name}
-            </span>
+        <span className="text-gray-300 min-w-0">
+          {selectedChars.length === 0 ? (
+            'Select characters (optional)'
           ) : (
-            'Select main character (optional)'
+            <span className="flex items-center gap-1.5 flex-wrap">
+              {selectedChars.slice(0, 3).map(c => (
+                <span key={c.id} className="flex items-center gap-1 text-white">
+                  {c.stockUrl && <img src={c.stockUrl} alt="" className="w-5 h-5" />}
+                  <span>{c.name}</span>
+                </span>
+              ))}
+              {selectedChars.length > 3 && (
+                <span className="text-gray-400 text-xs">+{selectedChars.length - 3} more</span>
+              )}
+            </span>
           )}
         </span>
-        <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
+        <span className="text-gray-400 text-xs flex-shrink-0 ml-2">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
-        <div className="p-2 grid grid-cols-4 sm:grid-cols-6 gap-1.5 bg-[#1a1a2e] border-t border-[#0f3460]">
+        <div className="p-2 grid grid-cols-4 gap-1.5 bg-[#1a1a2e] border-t border-[#0f3460]">
           {CHARACTERS.map(char => (
             <button
               key={char.id}
-              onClick={() => { onSelect(selectedId === char.id ? null : char.id); setOpen(false) }}
+              onClick={() => toggle(char.id)}
               title={char.name}
               className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition-colors ${
-                selectedId === char.id ? 'bg-[#e94560]' : 'bg-[#16213e] hover:bg-[#0f3460]'
+                selectedIds.includes(char.id) ? 'bg-[#e94560]' : 'bg-[#16213e] hover:bg-[#0f3460]'
               }`}
             >
               {char.stockUrl && <img src={char.stockUrl} alt={char.name} className="w-7 h-7" />}
@@ -48,20 +64,58 @@ function CharacterPicker({ selectedId, onSelect }) {
   )
 }
 
+function PlayerCharNote({ playerId, playerName, char }) {
+  const [note, setNote, loaded] = usePlayerCharNote(playerId, char.id)
+  const [collapsed, setCollapsed] = useState(false)
+  return (
+    <div className="border border-[#0f3460] rounded-lg overflow-hidden">
+      <button
+        onClick={() => setCollapsed(v => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 bg-[#1a1a2e] border-b border-[#0f3460] hover:bg-[#0f3460] transition-colors"
+      >
+        <span className="text-gray-400 text-xs flex-shrink-0">{collapsed ? '▶' : '▼'}</span>
+        {char.stockUrl && <img src={char.stockUrl} alt="" className="w-5 h-5" />}
+        <span className="text-sm font-medium text-white">{char.name}</span>
+      </button>
+      {!collapsed && (
+        <div className="p-2">
+          <MarkdownEditor
+            value={note}
+            onChange={setNote}
+            placeholder={loaded ? `Notes vs ${playerName}'s ${char.name}...` : 'Loading...'}
+            disabled={!loaded}
+            className="h-28"
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PlayerCard({ player, players, setPlayers, onDelete }) {
-  const [note, setNote, loaded] = usePlayerNote(player.id)
+  const [collapsed, setCollapsed] = useState(false)
+  const [generalNote, setGeneralNote, generalLoaded] = usePlayerNote(player.id)
+  const charIds = player.charIds ?? []
+  const selectedChars = CHARACTERS.filter(c => charIds.includes(c.id))
 
   function updateName(name) {
     setPlayers(players.map(p => p.id === player.id ? { ...p, name } : p))
   }
 
-  function updateMain(mainCharId) {
-    setPlayers(players.map(p => p.id === player.id ? { ...p, mainCharId } : p))
+  function updateChars(charIds) {
+    setPlayers(players.map(p => p.id === player.id ? { ...p, charIds } : p))
   }
 
   return (
     <div className="bg-[#16213e] rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#0f3460]">
+      <div className="flex items-center justify-between px-3 py-3 border-b border-[#0f3460]">
+        <button
+          onClick={() => setCollapsed(v => !v)}
+          className="text-gray-400 hover:text-white transition-colors text-xs pr-3 flex-shrink-0"
+          title={collapsed ? 'Expand' : 'Collapse'}
+        >
+          {collapsed ? '▶' : '▼'}
+        </button>
         <input
           type="text"
           value={player.name}
@@ -76,33 +130,67 @@ function PlayerCard({ player, players, setPlayers, onDelete }) {
           Delete
         </button>
       </div>
-      <div className="p-3 space-y-3">
-        <CharacterPicker selectedId={player.mainCharId} onSelect={updateMain} />
-        <MarkdownEditor
-          value={note}
-          onChange={setNote}
-          placeholder={loaded ? `Notes on playing against ${player.name}...` : 'Loading...'}
-          disabled={!loaded}
-          className="h-32"
-        />
-      </div>
+
+      {!collapsed && (
+        <div className="p-3 space-y-3">
+          <CharacterPicker selectedIds={charIds} onSelect={updateChars} />
+          {selectedChars.length > 0 ? (
+            <div className="space-y-3">
+              {selectedChars.map(char => (
+                <PlayerCharNote
+                  key={char.id}
+                  playerId={player.id}
+                  playerName={player.name}
+                  char={char}
+                />
+              ))}
+            </div>
+          ) : (
+            <MarkdownEditor
+              value={generalNote}
+              onChange={setGeneralNote}
+              placeholder={generalLoaded ? `Notes on playing against ${player.name}...` : 'Loading...'}
+              disabled={!generalLoaded}
+              className="h-32"
+            />
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 export default function PlayerNotes() {
   const [players, setPlayers, loaded] = usePlayerList()
+  const [migrated, setMigrated] = useState(false)
   const [addingPlayer, setAddingPlayer] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newMainCharId, setNewMainCharId] = useState(null)
+  const [newCharIds, setNewCharIds] = useState([])
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Migrate old mainCharId format to charIds array
+  useEffect(() => {
+    if (!loaded || migrated) return
+    const needsMigration = players.some(p => !('charIds' in p))
+    if (needsMigration) {
+      setPlayers(players.map(p =>
+        'charIds' in p ? p : { id: p.id, name: p.name, charIds: p.mainCharId ? [p.mainCharId] : [] }
+      ))
+    }
+    setMigrated(true)
+  }, [loaded, migrated, players, setPlayers])
+
+  const filteredPlayers = searchQuery.trim()
+    ? players.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : players
 
   function addPlayer() {
     if (!newName.trim()) return
     const id = Date.now().toString()
-    setPlayers([...players, { id, name: newName.trim(), mainCharId: newMainCharId }])
+    setPlayers([...players, { id, name: newName.trim(), charIds: newCharIds }])
     setNewName('')
-    setNewMainCharId(null)
+    setNewCharIds([])
     setAddingPlayer(false)
   }
 
@@ -113,7 +201,8 @@ export default function PlayerNotes() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-4 space-y-6 pb-12">
+    <div className="max-w-screen-xl mx-auto p-4 pb-12 space-y-4">
+      {/* Header row */}
       <div className="flex items-center justify-between pt-2">
         <h1 className="text-2xl font-bold text-white">Player Notes</h1>
         {!addingPlayer && (
@@ -126,35 +215,63 @@ export default function PlayerNotes() {
         )}
       </div>
 
+      {/* Search bar */}
+      {loaded && players.length > 0 && (
+        <div className="relative max-w-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search players..."
+            className="w-full bg-[#1a1a2e] border border-[#0f3460] rounded-lg pl-8 pr-8 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#e94560] transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-sm transition-colors"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Add player modal */}
       {addingPlayer && (
-        <div className="bg-[#16213e] rounded-lg overflow-hidden border border-[#0f3460]">
-          <div className="px-4 py-3 border-b border-[#0f3460]">
-            <input
-              type="text"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addPlayer()}
-              placeholder="Player name"
-              autoFocus
-              className="w-full bg-transparent text-white font-medium focus:outline-none placeholder-gray-500"
-            />
-          </div>
-          <div className="p-3 space-y-3">
-            <CharacterPicker selectedId={newMainCharId} onSelect={setNewMainCharId} />
-            <div className="flex gap-2">
-              <button
-                onClick={addPlayer}
-                disabled={!newName.trim()}
-                className="px-4 py-1.5 rounded-lg bg-[#e94560] text-white text-sm font-medium hover:bg-[#c73652] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Save
-              </button>
-              <button
-                onClick={() => { setAddingPlayer(false); setNewName(''); setNewMainCharId(null) }}
-                className="px-4 py-1.5 rounded-lg border border-[#0f3460] text-gray-300 text-sm hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={e => { if (e.target === e.currentTarget) { setAddingPlayer(false); setNewName(''); setNewCharIds([]) } }}
+        >
+          <div className="w-full max-w-sm mx-4 bg-[#16213e] rounded-lg overflow-hidden border border-[#0f3460] shadow-xl">
+            <div className="px-4 py-3 border-b border-[#0f3460]">
+              <input
+                type="text"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addPlayer()}
+                placeholder="Player name"
+                autoFocus
+                className="w-full bg-transparent text-white font-medium focus:outline-none placeholder-gray-500"
+              />
+            </div>
+            <div className="p-3 space-y-3">
+              <CharacterPicker selectedIds={newCharIds} onSelect={setNewCharIds} defaultOpen />
+              <div className="flex gap-2">
+                <button
+                  onClick={addPlayer}
+                  disabled={!newName.trim()}
+                  className="px-4 py-1.5 rounded-lg bg-[#e94560] text-white text-sm font-medium hover:bg-[#c73652] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => { setAddingPlayer(false); setNewName(''); setNewCharIds([]) }}
+                  className="px-4 py-1.5 rounded-lg border border-[#0f3460] text-gray-300 text-sm hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -164,15 +281,22 @@ export default function PlayerNotes() {
         <p className="text-gray-500 text-sm">No players yet. Add one to get started.</p>
       )}
 
-      {players.map(player => (
-        <PlayerCard
-          key={player.id}
-          player={player}
-          players={players}
-          setPlayers={setPlayers}
-          onDelete={() => setConfirmDelete(player.id)}
-        />
-      ))}
+      {loaded && players.length > 0 && filteredPlayers.length === 0 && (
+        <p className="text-gray-500 text-sm">No players match "{searchQuery}".</p>
+      )}
+
+      {/* Responsive grid: 1 col mobile → 2 col md → 3 col xl */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+        {filteredPlayers.map(player => (
+          <PlayerCard
+            key={player.id}
+            player={player}
+            players={players}
+            setPlayers={setPlayers}
+            onDelete={() => setConfirmDelete(player.id)}
+          />
+        ))}
+      </div>
 
       {confirmDelete && (
         <ConfirmModal

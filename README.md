@@ -130,10 +130,16 @@ Notes auto-save 500ms after you stop typing.
 ### Player Notes
 Track notes on specific opponents. Each player entry has:
 - A **name** field (editable at any time)
-- A **main character selector** — pick from the full roster; if set, the player's note card also appears on that character's notes page
-- A **notes area** with full markdown formatting for anything about playing against that person
+- A **character selector** — pick any number of characters they play; each selected character gets its own separate notes area. If no characters are selected, a single general notes area is shown instead
+- Notes auto-save 500ms after you stop typing
 
-Players are listed on the Player Notes page and can be deleted from there. Adding a player with a main automatically surfaces their card on the relevant character page.
+Player cards are **collapsible** — click the arrow on the left of the header to expand or collapse. On wider screens, cards are shown in a multi-column grid to make use of the extra space.
+
+A **search bar** at the top of the page lets you filter players by name in real time.
+
+Players whose character selections include a given character will appear on that character's notes page under "Players who main [character]", showing the notes specific to that character matchup.
+
+Players are listed on the Player Notes page and can be deleted from there.
 
 ### My Mains
 Select your main characters from a collapsible grid (with stock icons). Each selected main gets its own notes section for goals, habits to build, and things to work on — **separate from the roster notes** — plus its own attachment section. Quick links to the wiki page and frame data are included in each panel.
@@ -191,8 +197,9 @@ Stored as plain text files under `notes/{username}/`:
 | `notes/alice/main-zetterburn.txt` | Alice's Zetterburn mains notes |
 | `notes/alice/game-general.txt` | Alice's game-wide notes |
 | `notes/alice/mains.json` | Alice's selected main characters |
-| `notes/alice/player-list.json` | Alice's player entries (name, id, main character) |
-| `notes/alice/player-notes-{id}.txt` | Alice's notes on a specific player |
+| `notes/alice/player-list.json` | Alice's player entries (name, id, characters) |
+| `notes/alice/player-notes-{id}.txt` | Alice's general notes on a specific player |
+| `notes/alice/player-notes-{id}-{charId}.txt` | Alice's notes on a specific player's character |
 
 Each account's files are fully separated by subfolder. Files placed directly in `notes/` with no username subfolder are ignored.
 

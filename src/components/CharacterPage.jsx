@@ -1,12 +1,12 @@
 import { useParams, Link } from 'react-router-dom'
 import { CHARACTERS, characterWikiUrl, characterDataUrl } from '../data/characters'
-import { useCharacterNote, usePlayerList, usePlayerNote } from '../hooks/useNotes'
+import { useCharacterNote, usePlayerList, usePlayerCharNote } from '../hooks/useNotes'
 import WikiLink from './WikiLink'
 import AttachmentSection from './AttachmentSection'
 import MarkdownEditor from './MarkdownEditor'
 
-function CharacterPlayerCard({ player }) {
-  const [note, setNote, loaded] = usePlayerNote(player.id)
+function CharacterPlayerCard({ player, characterId }) {
+  const [note, setNote, loaded] = usePlayerCharNote(player.id, characterId)
   return (
     <div className="bg-[#16213e] rounded-lg overflow-hidden">
       <div className="px-4 py-3 border-b border-[#0f3460]">
@@ -16,7 +16,7 @@ function CharacterPlayerCard({ player }) {
         <MarkdownEditor
           value={note}
           onChange={setNote}
-          placeholder={loaded ? `Notes on playing against ${player.name}...` : 'Loading...'}
+          placeholder={loaded ? `Notes vs ${player.name}'s ${CHARACTERS.find(c => c.id === characterId)?.name ?? characterId}...` : 'Loading...'}
           disabled={!loaded}
           className="h-32"
         />
@@ -30,7 +30,9 @@ export default function CharacterPage() {
   const character = CHARACTERS.find(c => c.id === characterId)
   const [note, setNote, loaded] = useCharacterNote(characterId)
   const [players] = usePlayerList()
-  const matchingPlayers = players.filter(p => p.mainCharId === characterId)
+  const matchingPlayers = players.filter(p =>
+    p.charIds?.includes(characterId) || p.mainCharId === characterId
+  )
 
   if (!character) {
     return (
@@ -81,7 +83,7 @@ export default function CharacterPage() {
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-white">Players who main {character.name}</h2>
           {matchingPlayers.map(player => (
-            <CharacterPlayerCard key={player.id} player={player} />
+            <CharacterPlayerCard key={player.id} player={player} characterId={characterId} />
           ))}
         </section>
       )}

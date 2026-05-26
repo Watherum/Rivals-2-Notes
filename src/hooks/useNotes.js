@@ -78,6 +78,10 @@ export function usePlayerNote(playerId) {
   return useServerNote(`player_notes_${playerId}`, '')
 }
 
+export function usePlayerCharNote(playerId, charId) {
+  return useServerNote(`player_notes_${playerId}_${charId}`, '')
+}
+
 export function exportNotes() {
   const token = getToken()
   const a = document.createElement('a')
