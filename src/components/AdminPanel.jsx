@@ -202,6 +202,7 @@ export default function AdminPanel() {
   const { user } = useAuth()
   const [users, setUsers] = useState(null)
   const [error, setError] = useState(null)
+  const [search, setSearch] = useState('')
 
   const [updatePhase, setUpdatePhase] = useState('idle')
   const [updateInfo, setUpdateInfo] = useState(null)
@@ -302,59 +303,13 @@ export default function AdminPanel() {
     setUsers(prev => prev.filter(u => u.username !== username))
   }
 
+  const filteredUsers = users
+    ? users.filter(u => u.username.toLowerCase().includes(search.toLowerCase()))
+    : null
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
       <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
-
-      <section className="bg-[#16213e] rounded-lg p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">User Management</h2>
-          <button
-            onClick={loadUsers}
-            className="text-xs text-gray-400 hover:text-white transition-colors"
-          >
-            Refresh
-          </button>
-        </div>
-
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
-        {users === null && !error && (
-          <p className="text-sm text-gray-400">Loading…</p>
-        )}
-
-        {users !== null && users.length === 0 && (
-          <p className="text-sm text-gray-400">No users found.</p>
-        )}
-
-        {users !== null && users.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[#0f3460]">
-                  <th className="pb-2 pr-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Username</th>
-                  <th className="pb-2 pr-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Created</th>
-                  <th className="pb-2 pr-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Storage Used</th>
-                  <th className="pb-2 pr-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Limit</th>
-                  <th className="pb-2 pr-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Reset PW</th>
-                  <th className="pb-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <UserRow
-                    key={u.username}
-                    u={u}
-                    currentUsername={user?.username}
-                    onLimitSaved={handleLimitSaved}
-                    onDeleted={handleDeleted}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
 
       <section className="bg-[#16213e] rounded-lg p-5 space-y-2">
         <h2 className="text-lg font-semibold text-white">Promote a User to Admin</h2>
@@ -427,6 +382,68 @@ export default function AdminPanel() {
           <div className="space-y-2">
             <p className="text-sm text-red-400">{updateError || 'Something went wrong.'}</p>
             <button onClick={() => { setUpdatePhase('idle'); setUpdateError(null) }} className={btnClass}>Try Again</button>
+          </div>
+        )}
+      </section>
+
+      <section className="bg-[#16213e] rounded-lg p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">User Management</h2>
+          <button
+            onClick={loadUsers}
+            className="text-xs text-gray-400 hover:text-white transition-colors"
+          >
+            Refresh
+          </button>
+        </div>
+
+        <input
+          type="text"
+          placeholder="Search users…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full max-w-xs px-3 py-2 rounded-lg bg-[#0f3460] text-white text-sm border border-[#0f3460] focus:border-[#e94560] focus:outline-none placeholder-gray-500"
+        />
+
+        {error && <p className="text-sm text-red-400">{error}</p>}
+
+        {users === null && !error && (
+          <p className="text-sm text-gray-400">Loading…</p>
+        )}
+
+        {users !== null && users.length === 0 && (
+          <p className="text-sm text-gray-400">No users found.</p>
+        )}
+
+        {users !== null && users.length > 0 && filteredUsers.length === 0 && (
+          <p className="text-sm text-gray-400">No users match "{search}".</p>
+        )}
+
+        {filteredUsers !== null && filteredUsers.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#0f3460]">
+                  <th className="pb-2 pr-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Username</th>
+                  <th className="pb-2 pr-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Created</th>
+                  <th className="pb-2 pr-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Storage Used</th>
+                  <th className="pb-2 pr-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Limit</th>
+                  <th className="pb-2 pr-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Reset PW</th>
+                  <th className="pb-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.map(u => (
+                  <UserRow
+                    key={u.username}
+                    u={u}
+                    currentUsername={user?.username}
+                    onLimitSaved={handleLimitSaved}
+                    onDeleted={handleDeleted}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
