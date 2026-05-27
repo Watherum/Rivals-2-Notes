@@ -164,6 +164,7 @@ export default function ManageData() {
       const r = await authFetch('/api/github-import', { method: 'POST' })
       const d = await r.json()
       if (!r.ok) return setGithubStatus({ ok: false, message: d.error || 'Import failed.' })
+      if (d.gistUrl) setGithubGistUrl(d.gistUrl)
       setGithubStatus({ ok: true, message: `Import complete! ${d.notes} notes merged. Reloading…` })
       setTimeout(() => window.location.reload(), 1000)
     } catch {
@@ -321,7 +322,7 @@ export default function ManageData() {
             </button>
             <button
               onClick={importFromGithub}
-              disabled={!githubPatSet || !githubGistUrl || githubImportLoading}
+              disabled={!githubPatSet || githubImportLoading}
               className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {githubImportLoading ? 'Importing…' : 'Import from GitHub'}

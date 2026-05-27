@@ -601,7 +601,6 @@ app.post('/api/github-import', requireAuth, async (req, res) => {
   const { githubPat, githubGistId } = users[username] || {}
 
   if (!githubPat) return res.status(400).json({ error: 'No GitHub token configured. Add one in Manage Data.' })
-  if (!githubGistId) return res.status(400).json({ error: 'No Gist linked. Run a backup first.' })
 
   try {
     const headers = {
@@ -611,7 +610,32 @@ app.post('/api/github-import', requireAuth, async (req, res) => {
       'User-Agent': 'RoA2-Notes-App',
     }
 
-    const ghRes = await fetch(`https://api.github.com/gists/${githubGistId}`, { headers })
+    let resolvedGistId = githubGistId
+    if (!resolvedGistId) {
+      // Search the user's gists for a backup created by this app
+      let page = 1
+      let found = null
+      while (!found) {
+        const listRes = await fetch(`https://api.github.com/gists?per_page=100&page=${page}`, { headers })
+        if (!listRes.ok) {
+          const listData = await listRes.json()
+          return res.status(listRes.status).json({ error: listData.message || 'Failed to list gists.' })
+        }
+        const gists = await listRes.json()
+        if (gists.length === 0) break
+        found = gists.find(g => g.files?.['roa2-notes-backup.json'])
+        if (found || gists.length < 100) break
+        page++
+      }
+      if (!found) return res.status(404).json({ error: 'No RoA2 Notes backup found in your GitHub Gists. Create a backup first.' })
+      resolvedGistId = found.id
+      const freshUsers = readUsers()
+      freshUsers[username].githubGistId = found.id
+      freshUsers[username].githubGistUrl = found.html_url
+      writeUsers(freshUsers)
+    }
+
+    const ghRes = await fetch(`https://api.github.com/gists/${resolvedGistId}`, { headers })
     const ghData = await ghRes.json()
     if (!ghRes.ok) return res.status(ghRes.status).json({ error: ghData.message || 'GitHub API error' })
 
@@ -626,7 +650,7 @@ app.post('/api/github-import', requireAuth, async (req, res) => {
 
     const notes = JSON.parse(content)
     const count = writeNotes(notes, username, true)
-    res.json({ ok: true, notes: count })
+    res.json({ ok: true, notes: count, gistUrl: ghData.html_url })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
