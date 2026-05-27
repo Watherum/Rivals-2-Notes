@@ -92,7 +92,7 @@ Admins can manage other users from the **Admin** page (visible in the nav bar fo
 - **Set storage limits** — set or clear the attachment storage quota for any user
 - **Reset password** — set a new password for any user (useful if they've forgotten theirs). The user can then log in with the new password and change it themselves via Manage Data → Change Password
 - **Delete users** — permanently removes a user's account, notes, and all attachments
-- **Check for Updates** — check GitHub for a new version and download it to the same folder as the current exe. Once downloaded, an **Open Folder** button reveals the new file in Explorer; click **Exit App** to close the current version, then run the new exe to complete the update (packaged `.exe` only)
+- **Check for Updates** — check GitHub for a new version. On Windows (packaged `.exe`): downloads the new exe to the same folder; an **Open Folder** button reveals it in Explorer and **Exit App** closes the current version so you can run the new one. On Mac/Linux (source install): downloads the release tarball, extracts it, runs `npm install` and `npm run build` automatically, then **Restart App** relaunches with the new version
 
 To grant admin access, open `users.json` and add `"isAdmin": true` to the user's entry:
 
@@ -132,6 +132,8 @@ Track notes on specific opponents. Each player entry has:
 - A **name** field (editable at any time)
 - A **character selector** — pick any number of characters they play; each selected character gets its own separate notes area. If no characters are selected, a single general notes area is shown instead
 - Notes auto-save 500ms after you stop typing
+
+When adding a new player, the character selector is visible immediately but stays **grayed out** until a player name is entered — ensuring every entry has a name before any characters are assigned.
 
 Player cards are **collapsible** — click the arrow on the left of the header to expand or collapse. Within a card, each individual character notes section is also collapsible via its own header toggle. On wider screens, cards are shown in a multi-column grid to make use of the extra space.
 
@@ -179,7 +181,8 @@ Quick links to useful external sites:
 ### Admin Panel
 Admin-only page accessible from the nav bar. Includes all user management tools plus:
 - **Reset Password** — set a new temporary password for any user (for forgotten passwords). The user logs in with it and changes it via Manage Data → Change Password.
-- **Check for Updates** — check GitHub for the latest version. On packaged `.exe`: downloads the new exe (keeping its versioned filename from GitHub) to the same folder, then shows **Open Folder** to reveal it in Explorer and **Exit App** to close the current version — run the new file to finish updating. On non-packaged installs: links to the GitHub release page.
+- **Check for Updates** — check GitHub for the latest version. On Windows (packaged `.exe`): downloads the new exe to the same folder, then shows **Open Folder** to reveal it in Explorer and **Exit App** to close the current version — run the new file to finish updating. On Mac/Linux (source install): downloads the release tarball, extracts it, runs `npm install` and `npm run build` automatically (with live phase progress), then **Restart App** relaunches with the new version. On unrecognised installs: links to the GitHub release page.
+- **Search users** — filter the user list by username in real time using the search bar above the table
 
 ---
 

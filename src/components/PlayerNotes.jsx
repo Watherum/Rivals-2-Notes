@@ -5,7 +5,7 @@ import { authFetch } from '../utils/api'
 import MarkdownEditor from './MarkdownEditor'
 import ConfirmModal from './ConfirmModal'
 
-function CharacterPicker({ selectedIds = [], onSelect, defaultOpen = false }) {
+function CharacterPicker({ selectedIds = [], onSelect, defaultOpen = false, disabled = false }) {
   const [open, setOpen] = useState(defaultOpen)
 
   function toggle(charId) {
@@ -19,27 +19,14 @@ function CharacterPicker({ selectedIds = [], onSelect, defaultOpen = false }) {
   const selectedChars = CHARACTERS.filter(c => selectedIds.includes(c.id))
 
   return (
-    <div className="border border-[#0f3460] rounded-lg overflow-hidden">
+    <div className={`border border-[#0f3460] rounded-lg overflow-hidden ${disabled ? 'opacity-40' : ''}`}>
       <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex justify-between items-center px-3 py-2 bg-[#1a1a2e] text-sm hover:bg-[#0f3460] transition-colors"
+        onClick={() => !disabled && setOpen(v => !v)}
+        disabled={disabled}
+        className="w-full flex justify-between items-center px-3 py-2 bg-[#1a1a2e] text-sm hover:bg-[#0f3460] transition-colors disabled:cursor-not-allowed disabled:hover:bg-[#1a1a2e]"
       >
         <span className="text-gray-300 min-w-0">
-          {selectedChars.length === 0 ? (
-            'Select characters (optional)'
-          ) : (
-            <span className="flex items-center gap-1.5 flex-wrap">
-              {selectedChars.slice(0, 3).map(c => (
-                <span key={c.id} className="flex items-center gap-1 text-white">
-                  {c.stockUrl && <img src={c.stockUrl} alt="" className="w-5 h-5" />}
-                  <span>{c.name}</span>
-                </span>
-              ))}
-              {selectedChars.length > 3 && (
-                <span className="text-gray-400 text-xs">+{selectedChars.length - 3} more</span>
-              )}
-            </span>
-          )}
+          Select characters{selectedChars.length > 0 ? ` (${selectedChars.length} selected)` : ' (optional)'}
         </span>
         <span className="text-gray-400 text-xs flex-shrink-0 ml-2">{open ? '▲' : '▼'}</span>
       </button>
@@ -48,9 +35,10 @@ function CharacterPicker({ selectedIds = [], onSelect, defaultOpen = false }) {
           {CHARACTERS.map(char => (
             <button
               key={char.id}
-              onClick={() => toggle(char.id)}
+              onClick={() => !disabled && toggle(char.id)}
+              disabled={disabled}
               title={char.name}
-              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition-colors ${
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition-colors disabled:cursor-not-allowed ${
                 selectedIds.includes(char.id) ? 'bg-[#e94560]' : 'bg-[#16213e] hover:bg-[#0f3460]'
               }`}
             >
@@ -256,7 +244,7 @@ export default function PlayerNotes() {
               />
             </div>
             <div className="p-3 space-y-3">
-              <CharacterPicker selectedIds={newCharIds} onSelect={setNewCharIds} defaultOpen />
+              <CharacterPicker selectedIds={newCharIds} onSelect={setNewCharIds} defaultOpen disabled={!newName.trim()} />
               <div className="flex gap-2">
                 <button
                   onClick={addPlayer}

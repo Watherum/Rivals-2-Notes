@@ -209,7 +209,13 @@ export default function AdminPanel() {
   const [updateError, setUpdateError] = useState(null)
   const [downloadProgress, setDownloadProgress] = useState(0)
   const [updateAssetName, setUpdateAssetName] = useState(null)
+  const [updatePhaseLabel, setUpdatePhaseLabel] = useState(null)
   const pollRef = useRef(null)
+
+  function getPhaseLabel(phase) {
+    const labels = { downloading: 'Downloading update...', extracting: 'Extracting files...', installing: 'Running npm install...', building: 'Building app...' }
+    return labels[phase] || 'Updating...'
+  }
 
   const loadUsers = useCallback(async () => {
     setError(null)
@@ -228,6 +234,7 @@ export default function AdminPanel() {
       if (data.status === 'downloading') {
         setUpdatePhase('downloading')
         setDownloadProgress(data.progress)
+        if (data.phase) setUpdatePhaseLabel(getPhaseLabel(data.phase))
         startPolling()
       } else if (data.status === 'ready') {
         setUpdatePhase('ready')
@@ -245,14 +252,17 @@ export default function AdminPanel() {
         const r = await fetch('/api/update/status')
         const data = await r.json()
         setDownloadProgress(data.progress)
+        if (data.phase) setUpdatePhaseLabel(getPhaseLabel(data.phase))
         if (data.status === 'ready') {
           clearInterval(pollRef.current)
           setUpdatePhase('ready')
+          setUpdatePhaseLabel(null)
           if (data.assetName) setUpdateAssetName(data.assetName)
         } else if (data.status === 'error') {
           clearInterval(pollRef.current)
           setUpdateError(data.error || 'Download failed.')
           setUpdatePhase('error')
+          setUpdatePhaseLabel(null)
         }
       } catch {}
     }, 1500)
@@ -346,7 +356,7 @@ export default function AdminPanel() {
         {updatePhase === 'update_available' && updateInfo && (
           <div className="space-y-2">
             <p className="text-sm text-yellow-300">Update available: <span className="font-medium">v{updateInfo.latestVersion}</span></p>
-            {updateInfo.isPackaged ? (
+            {updateInfo.isPackaged || updateInfo.tarballUrl ? (
               <button onClick={downloadUpdate} className={btnClass}>Download & Install</button>
             ) : (
               <a href={updateInfo.releaseUrl} target="_blank" rel="noreferrer" className={`${btnClass} inline-block`}>
@@ -358,7 +368,9 @@ export default function AdminPanel() {
 
         {updatePhase === 'downloading' && (
           <div className="space-y-2">
-            <p className="text-sm text-gray-400">Downloading update… {downloadProgress}%</p>
+            <p className="text-sm text-gray-400">
+              {updatePhaseLabel ? `${updatePhaseLabel} (${downloadProgress}%)` : `Downloading update… ${downloadProgress}%`}
+            </p>
             <div className="w-full bg-[#0f3460] rounded-full h-2">
               <div className="bg-[#e94560] h-2 rounded-full transition-all duration-300" style={{ width: `${downloadProgress}%` }} />
             </div>
@@ -368,12 +380,24 @@ export default function AdminPanel() {
         {updatePhase === 'ready' && (
           <div className="space-y-3">
             <div>
-              <p className="text-sm text-green-400">Update downloaded{updateAssetName ? `: ${updateAssetName}` : '.'}</p>
-              <p className="text-sm text-gray-400 mt-1">Close this app and run the new file from the same folder to complete the update.</p>
+              <p className="text-sm text-green-400">
+                {updateInfo?.isPackaged
+                  ? `Update downloaded${updateAssetName ? `: ${updateAssetName}` : '.'}`
+                  : 'Update installed successfully.'}
+              </p>
+              <p className="text-sm text-gray-400 mt-1">
+                {updateInfo?.isPackaged
+                  ? 'Close this app and run the new file from the same folder to complete the update.'
+                  : 'Restart the app to use the new version.'}
+              </p>
             </div>
             <div className="flex gap-2 flex-wrap">
-              <button onClick={openUpdateFolder} className={btnClass}>Open Folder</button>
-              <button onClick={exitAndUpdate} className={btnClass}>Exit App</button>
+              {updateInfo?.isPackaged && (
+                <button onClick={openUpdateFolder} className={btnClass}>Open Folder</button>
+              )}
+              <button onClick={exitAndUpdate} className={btnClass}>
+                {updateInfo?.isPackaged ? 'Exit App' : 'Restart App'}
+              </button>
             </div>
           </div>
         )}

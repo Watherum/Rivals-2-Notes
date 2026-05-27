@@ -28,7 +28,7 @@ function normalizeTag(tag) {
   return tag.replace(/^v/i, '').toLowerCase()
 }
 
-let updateState = { status: 'idle', progress: 0, error: null, latestVersion: null, downloadUrl: null, assetName: null, updatePath: null }
+let updateState = { status: 'idle', progress: 0, error: null, latestVersion: null, downloadUrl: null, assetName: null, updatePath: null, phase: null, tarballUrl: null }
 const NOTES_DIR = path.join(DATA_DIR, 'notes')
 const ATTACHMENTS_DIR = path.join(DATA_DIR, 'attachments')
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json')
@@ -543,6 +543,89 @@ app.post('/api/import', requireAuth, (req, res) => {
   })
 })
 
+// --- Update helpers ---
+
+function copyDirSync(src, dest, skipSet) {
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    if (skipSet?.has(entry.name)) continue
+    const srcPath = path.join(src, entry.name)
+    const destPath = path.join(dest, entry.name)
+    if (entry.isDirectory()) {
+      fs.mkdirSync(destPath, { recursive: true })
+      copyDirSync(srcPath, destPath, null)
+    } else {
+      fs.copyFileSync(srcPath, destPath)
+    }
+  }
+}
+
+function runNpmCommand(args, cwd) {
+  return new Promise((resolve, reject) => {
+    const child = spawnProcess('npm', args, { cwd, stdio: 'pipe', env: { ...process.env } })
+    let stderr = ''
+    child.stderr.on('data', d => { stderr += d.toString() })
+    child.on('close', code => code === 0 ? resolve() : reject(new Error(`npm ${args.join(' ')} failed: ${stderr.slice(-500)}`)))
+    child.on('error', err => reject(new Error(`Failed to spawn npm: ${err.message}`)))
+  })
+}
+
+async function runUnixUpdate() {
+  const appRoot = __dirname
+  const tmpDir = path.join(os.tmpdir(), `roa2-update-${Date.now()}`)
+  const tarballPath = path.join(tmpDir, 'update.tar.gz')
+  try {
+    updateState.phase = 'downloading'
+    updateState.progress = 0
+    fs.mkdirSync(tmpDir, { recursive: true })
+
+    const dlRes = await fetch(updateState.tarballUrl, { headers: { 'User-Agent': 'RoA2-Notes-App' } })
+    if (!dlRes.ok) throw new Error(`Download failed (HTTP ${dlRes.status})`)
+    const total = parseInt(dlRes.headers.get('content-length') || '0', 10)
+    let downloaded = 0
+    const nodeStream = Readable.fromWeb(dlRes.body)
+    nodeStream.on('data', chunk => {
+      downloaded += chunk.length
+      if (total > 0) updateState.progress = Math.round((downloaded / total) * 40)
+    })
+    await pipeline(nodeStream, fs.createWriteStream(tarballPath))
+    updateState.progress = 40
+
+    updateState.phase = 'extracting'
+    const extractDir = path.join(tmpDir, 'extracted')
+    fs.mkdirSync(extractDir, { recursive: true })
+    await new Promise((resolve, reject) => {
+      const tar = spawnProcess('tar', ['-xzf', tarballPath, '-C', extractDir], { stdio: 'pipe' })
+      tar.on('close', code => code === 0 ? resolve() : reject(new Error(`tar exited with code ${code}`)))
+      tar.on('error', reject)
+    })
+    updateState.progress = 55
+
+    // GitHub tarballs extract to a single nested dir (e.g. Watherum-Rivals-2-Notes-{sha}/)
+    const entries = fs.readdirSync(extractDir)
+    const sourceDir = entries.length === 1 && fs.statSync(path.join(extractDir, entries[0])).isDirectory()
+      ? path.join(extractDir, entries[0]) : extractDir
+
+    copyDirSync(sourceDir, appRoot, new Set(['node_modules', 'data', '.env', 'dist', '.git']))
+    updateState.progress = 65
+
+    updateState.phase = 'installing'
+    await runNpmCommand(['install'], appRoot)
+    updateState.progress = 80
+
+    updateState.phase = 'building'
+    await runNpmCommand(['run', 'build'], appRoot)
+    updateState.progress = 100
+
+    updateState.status = 'ready'
+    updateState.phase = null
+  } catch (e) {
+    updateState.status = 'error'
+    updateState.error = e.message
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }) } catch {}
+  }
+}
+
 // --- Update endpoints (unauthenticated — system level) ---
 
 app.get('/api/update/check', async (req, res) => {
@@ -577,10 +660,17 @@ app.get('/api/update/check', async (req, res) => {
     const exeAsset = (release.assets || []).find(a => a.name.endsWith('.exe'))
     const downloadUrl = exeAsset?.browser_download_url || null
 
-    if (hasUpdate && downloadUrl) {
+    if (hasUpdate) {
       updateState.latestVersion = latestVersion
-      updateState.downloadUrl = downloadUrl
-      updateState.assetName = exeAsset.name
+      if (process.platform === 'win32' && exeAsset) {
+        updateState.downloadUrl = downloadUrl
+        updateState.assetName = exeAsset.name
+        updateState.tarballUrl = null
+      } else if (process.platform !== 'win32') {
+        updateState.tarballUrl = release.tarball_url || null
+        updateState.downloadUrl = null
+        updateState.assetName = null
+      }
     }
 
     res.json({
@@ -590,6 +680,7 @@ app.get('/api/update/check', async (req, res) => {
       downloadUrl,
       releaseUrl: release.html_url,
       isPackaged: !!process.env.PORTABLE_EXECUTABLE_FILE,
+      tarballUrl: updateState.tarballUrl,
     })
   } catch {
     res.json({ error: 'Network error. Check your connection and try again.' })
@@ -601,56 +692,73 @@ app.get('/api/update/status', (req, res) => {
 })
 
 app.post('/api/update/download', async (req, res) => {
-  if (!process.env.PORTABLE_EXECUTABLE_FILE) {
-    return res.status(400).json({ error: 'Auto-download is only available in the packaged app.' })
-  }
-  if (!updateState.downloadUrl) {
-    return res.status(400).json({ error: 'No update available. Check for updates first.' })
-  }
-  if (updateState.status === 'downloading') {
-    return res.json({ status: 'downloading' })
-  }
-
-  updateState.status = 'downloading'
-  updateState.progress = 0
-  updateState.error = null
-  res.json({ status: 'downloading' })
-
-  ;(async () => {
-    try {
-      const exeDir = process.env.PORTABLE_EXECUTABLE_DIR
-      const updatePath = path.join(exeDir, updateState.assetName)
-      updateState.updatePath = updatePath
-
-      const dlResponse = await fetch(updateState.downloadUrl)
-      if (!dlResponse.ok) throw new Error(`Download failed (HTTP ${dlResponse.status})`)
-
-      const totalBytes = parseInt(dlResponse.headers.get('content-length') || '0', 10)
-      let downloadedBytes = 0
-
-      const writeStream = fs.createWriteStream(updatePath)
-      const nodeStream = Readable.fromWeb(dlResponse.body)
-
-      nodeStream.on('data', chunk => {
-        downloadedBytes += chunk.length
-        if (totalBytes > 0) {
-          updateState.progress = Math.round((downloadedBytes / totalBytes) * 100)
-        }
-      })
-
-      await pipeline(nodeStream, writeStream)
-
-      updateState.status = 'ready'
-      updateState.progress = 100
-    } catch (e) {
-      updateState.status = 'error'
-      updateState.error = e.message
+  if (process.platform === 'win32') {
+    if (!process.env.PORTABLE_EXECUTABLE_FILE) {
+      return res.status(400).json({ error: 'Auto-download is only available in the packaged app.' })
     }
-  })()
+    if (!updateState.downloadUrl) {
+      return res.status(400).json({ error: 'No update available. Check for updates first.' })
+    }
+    if (updateState.status === 'downloading') {
+      return res.json({ status: 'downloading' })
+    }
+
+    updateState.status = 'downloading'
+    updateState.progress = 0
+    updateState.error = null
+    res.json({ status: 'downloading' })
+
+    ;(async () => {
+      try {
+        const exeDir = process.env.PORTABLE_EXECUTABLE_DIR
+        const updatePath = path.join(exeDir, updateState.assetName)
+        updateState.updatePath = updatePath
+
+        const dlResponse = await fetch(updateState.downloadUrl)
+        if (!dlResponse.ok) throw new Error(`Download failed (HTTP ${dlResponse.status})`)
+
+        const totalBytes = parseInt(dlResponse.headers.get('content-length') || '0', 10)
+        let downloadedBytes = 0
+
+        const writeStream = fs.createWriteStream(updatePath)
+        const nodeStream = Readable.fromWeb(dlResponse.body)
+
+        nodeStream.on('data', chunk => {
+          downloadedBytes += chunk.length
+          if (totalBytes > 0) {
+            updateState.progress = Math.round((downloadedBytes / totalBytes) * 100)
+          }
+        })
+
+        await pipeline(nodeStream, writeStream)
+
+        updateState.status = 'ready'
+        updateState.progress = 100
+      } catch (e) {
+        updateState.status = 'error'
+        updateState.error = e.message
+      }
+    })()
+  } else {
+    if (!updateState.tarballUrl) {
+      return res.status(400).json({ error: 'No update available. Check for updates first.' })
+    }
+    if (updateState.status === 'downloading') {
+      return res.json({ status: 'downloading' })
+    }
+
+    updateState.status = 'downloading'
+    updateState.phase = 'downloading'
+    updateState.progress = 0
+    updateState.error = null
+    res.json({ status: 'downloading' })
+
+    runUnixUpdate()
+  }
 })
 
 app.post('/api/update/restart', (req, res) => {
-  if (!process.env.PORTABLE_EXECUTABLE_FILE) {
+  if (process.platform === 'win32' && !process.env.PORTABLE_EXECUTABLE_FILE) {
     return res.status(400).json({ error: 'Restart is only available in the packaged app.' })
   }
   if (updateState.status !== 'ready') {
@@ -661,6 +769,7 @@ app.post('/api/update/restart', (req, res) => {
 })
 
 app.post('/api/update/open-folder', (req, res) => {
+  if (process.platform !== 'win32') return res.status(400).json({ error: 'Not supported on this platform.' })
   if (!updateState.updatePath) return res.status(400).json({ error: 'No update path available.' })
   spawnProcess('explorer.exe', ['/select,', updateState.updatePath], { detached: true, stdio: 'ignore' }).unref()
   res.json({ ok: true })
