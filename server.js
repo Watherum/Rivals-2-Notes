@@ -174,17 +174,42 @@ function readAllNotes(username) {
   return notes
 }
 
+function mergePlayerList(existing, incoming) {
+  const a = Array.isArray(existing) ? existing : []
+  const b = Array.isArray(incoming) ? incoming : []
+
+  const idRemap = {}
+  const result = a.map(p => ({ ...p, charIds: [...(p.charIds || [])] }))
+  const existingByName = new Map(result.map(p => [p.name.toLowerCase(), p]))
+  const existingById = new Set(result.map(p => p.id))
+
+  for (const incomingPlayer of b) {
+    const nameKey = incomingPlayer.name.toLowerCase()
+
+    if (existingById.has(incomingPlayer.id)) {
+      continue
+    }
+
+    if (existingByName.has(nameKey)) {
+      const existingPlayer = existingByName.get(nameKey)
+      idRemap[incomingPlayer.id] = existingPlayer.id
+      existingPlayer.charIds = [...new Set([...existingPlayer.charIds, ...(incomingPlayer.charIds || [])])]
+    } else {
+      const copy = { ...incomingPlayer, charIds: [...(incomingPlayer.charIds || [])] }
+      result.push(copy)
+      existingByName.set(nameKey, copy)
+      existingById.add(incomingPlayer.id)
+    }
+  }
+
+  return { mergedList: result, idRemap }
+}
+
 function mergeNoteValue(existing, incoming, key) {
   if (key === 'user_mains') {
     const a = Array.isArray(existing) ? existing : []
     const b = Array.isArray(incoming) ? incoming : []
     return [...new Set([...a, ...b])]
-  }
-  if (key === 'player_list') {
-    const a = Array.isArray(existing) ? existing : []
-    const b = Array.isArray(incoming) ? incoming : []
-    const existingIds = new Set(a.map(p => p.id))
-    return [...a, ...b.filter(p => !existingIds.has(p.id))]
   }
   // String notes: append with separator if both have content
   const existingStr = typeof existing === 'string' ? existing.trim() : ''
@@ -195,14 +220,43 @@ function mergeNoteValue(existing, incoming, key) {
 
 function writeNotes(notes, username, append = false) {
   let count = 0
+  let idRemap = {}
+
+  if ('player_list' in notes) {
+    const fp = keyToFile('player_list', username)
+    let merged = notes.player_list
+    if (append && fs.existsSync(fp)) {
+      const raw = fs.readFileSync(fp, 'utf8')
+      let existing = []
+      try { existing = JSON.parse(raw) } catch { existing = [] }
+      const { mergedList, idRemap: remap } = mergePlayerList(existing, notes.player_list)
+      merged = mergedList
+      idRemap = remap
+    }
+    fs.writeFileSync(fp, JSON.stringify(merged, null, 2), 'utf8')
+    count++
+  }
+
   for (const [key, value] of Object.entries(notes)) {
-    const fp = keyToFile(key, username)
+    if (key === 'player_list') continue
+
+    let resolvedKey = key
+    if (key.startsWith('player_notes_')) {
+      for (const [incomingId, existingId] of Object.entries(idRemap)) {
+        if (key === `player_notes_${incomingId}` || key.startsWith(`player_notes_${incomingId}__`)) {
+          resolvedKey = key.replace(`player_notes_${incomingId}`, `player_notes_${existingId}`)
+          break
+        }
+      }
+    }
+
+    const fp = keyToFile(resolvedKey, username)
     let merged = value
     if (append && fs.existsSync(fp)) {
       const raw = fs.readFileSync(fp, 'utf8')
       let existing
       try { existing = JSON.parse(raw) } catch { existing = raw }
-      merged = mergeNoteValue(existing, value, key)
+      merged = mergeNoteValue(existing, value, resolvedKey)
     }
     const content = typeof merged === 'string' ? merged : JSON.stringify(merged, null, 2)
     fs.writeFileSync(fp, content, 'utf8')

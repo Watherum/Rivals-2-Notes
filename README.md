@@ -150,14 +150,20 @@ Select your main characters from a collapsible grid (with stock icons). Each sel
 A single full-page notes area for anything game-wide — general strategy, tournament prep, observations, etc. Supports attachments. Saved to `notes/game-general.txt`.
 
 ### Rich Text Formatting
-The notes areas on **Character Notes**, **My Mains**, and **Game Notes** all include a formatting toolbar with:
+All notes areas include a formatting toolbar with:
 - **B** — bold
 - *I* — italic
+- ~~S~~ — strikethrough
 - **H1 / H2 / H3** — headings
 - **•** — bullet list
 - **1.** — numbered list
+- **[ ]** — checklist (GitHub Flavored Markdown task list)
+- **—** — horizontal rule
+- **[url]** — insert a link
+- **[img]** — insert an image (by URL)
+- **↵** — insert a hard line break
 
-Click a button while text is selected to wrap it, or click with no selection to insert a placeholder. Toggle **Preview** to render the formatted note. Notes are stored as Markdown, so existing plain-text notes are fully compatible.
+Click a button while text is selected to wrap it, or click with no selection to insert a placeholder. Toggle **Preview** to render the formatted note. Notes are stored as Markdown (with GFM support for strikethrough and task lists), so existing plain-text notes are fully compatible.
 
 ### Gallery
 A master gallery showing every uploaded attachment across all pages, grouped by source (e.g. "Zetterburn — Character Notes", "Orcane — My Mains", "Game Notes"). Click any image to open it in a lightbox; click any video to play it inline. Attachments can also be deleted from here.
@@ -175,7 +181,7 @@ Quick links to useful external sites:
 - **Profile Photo** — upload or remove your profile photo. Appears as a circle next to your username in the nav bar. Accepts any image format, up to 5 MB.
 - **Export** — downloads your notes and attachments as a single `roa2-notes-backup.zip` file
 - **GitHub Backup** — backs up your notes to a private GitHub Gist using a Personal Access Token. See [GitHub Backup](#github-backup) below.
-- **Import** — restores notes and attachments from a `.zip` backup, or notes only from a legacy `.json` backup. Imported notes are **appended** to existing ones (joined with a `---` separator); mains and player lists are merged rather than replaced
+- **Import** — restores notes and attachments from a `.zip` backup, or notes only from a legacy `.json` backup. Imported notes are **appended** to existing ones (joined with a `---` separator); mains are merged without duplicates; players are matched by name and merged — same-name players have their character lists combined and notes merged rather than creating duplicates
 - **Change Password** — update your password after confirming your current one. New password must be at least 6 characters.
 - **Attachment Storage** — set a personal size limit (in GB) for your attachments. Uploads that would exceed your limit are rejected. Each user sets their own limit independently. Leave blank for no limit.
 
@@ -231,7 +237,7 @@ Go to **Manage Data → Choose Backup File** and select either:
 - A `.zip` file (restores notes + attachments)
 - A legacy `.json` file (restores notes only)
 
-Imported notes are appended to any existing content using a `---` separator, so nothing is lost. Mains and player lists are merged — existing entries are kept and new ones are added alongside them.
+Imported notes are appended to any existing content using a `---` separator, so nothing is lost. Mains are merged without duplicates. Players are merged by **name** — if an imported player has the same name as an existing one, their character lists are combined and per-character notes are merged rather than creating a duplicate entry. Genuinely new players are added alongside existing ones.
 
 ### GitHub Backup
 
@@ -259,7 +265,7 @@ To stop using the feature, click **Remove Token** — this clears the stored tok
 
 #### Importing from GitHub
 
-Once a backup exists, an **Import from GitHub** button appears alongside the backup button. Clicking it fetches your latest Gist and merges the notes into your current data using the same rules as zip import — text notes are appended with a `---` separator, mains and player lists are merged without duplicates. The page reloads automatically once the import completes.
+Once a backup exists, an **Import from GitHub** button appears alongside the backup button. Clicking it fetches your latest Gist and merges the notes into your current data using the same rules as zip import — text notes are appended with a `---` separator, mains are merged without duplicates, and players are matched by **name**: same-name players have their character lists combined and notes merged rather than creating duplicates. The page reloads automatically once the import completes.
 
 ---
 
