@@ -1,7 +1,7 @@
 {
   "name": "rivals-2-notes",
   "private": true,
-  "version": "6.1.0",
+  "version": "6.2.0",
   "type": "module",
   "author": "Watherum",
   "main": "electron/main.cjs",
@@ -52,7 +52,8 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.15.1"
+    "react-router-dom": "^7.15.1",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
