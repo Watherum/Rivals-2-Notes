@@ -963,7 +963,7 @@ function copyDirSync(src, dest, skipSet) {
 
 function runNpmCommand(args, cwd) {
   return new Promise((resolve, reject) => {
-    const child = spawnProcess('npm', args, { cwd, stdio: 'pipe', env: { ...process.env } })
+    const child = spawnProcess('npm', args, { cwd, stdio: 'pipe', shell: process.platform === 'win32', env: { ...process.env } })
     let stderr = ''
     child.stderr.on('data', d => { stderr += d.toString() })
     child.on('close', code => code === 0 ? resolve() : reject(new Error(`npm ${args.join(' ')} failed: ${stderr.slice(-500)}`)))
@@ -1064,11 +1064,11 @@ app.get('/api/update/check', async (req, res) => {
 
     if (hasUpdate) {
       updateState.latestVersion = latestVersion
-      if (process.platform === 'win32' && exeAsset) {
+      if (process.platform === 'win32' && process.env.PORTABLE_EXECUTABLE_FILE && exeAsset) {
         updateState.downloadUrl = downloadUrl
         updateState.assetName = exeAsset.name
         updateState.tarballUrl = null
-      } else if (process.platform !== 'win32') {
+      } else {
         updateState.tarballUrl = release.tarball_url || null
         updateState.downloadUrl = null
         updateState.assetName = null
@@ -1094,10 +1094,9 @@ app.get('/api/update/status', (req, res) => {
 })
 
 app.post('/api/update/download', async (req, res) => {
-  if (process.platform === 'win32') {
-    if (!process.env.PORTABLE_EXECUTABLE_FILE) {
-      return res.status(400).json({ error: 'Auto-download is only available in the packaged app.' })
-    }
+  const isPackagedExe = process.platform === 'win32' && !!process.env.PORTABLE_EXECUTABLE_FILE
+
+  if (isPackagedExe) {
     if (!updateState.downloadUrl) {
       return res.status(400).json({ error: 'No update available. Check for updates first.' })
     }
@@ -1142,6 +1141,7 @@ app.post('/api/update/download', async (req, res) => {
       }
     })()
   } else {
+    // Source mode: Unix or Windows npm run start
     if (!updateState.tarballUrl) {
       return res.status(400).json({ error: 'No update available. Check for updates first.' })
     }
@@ -1160,9 +1160,6 @@ app.post('/api/update/download', async (req, res) => {
 })
 
 app.post('/api/update/restart', (req, res) => {
-  if (process.platform === 'win32' && !process.env.PORTABLE_EXECUTABLE_FILE) {
-    return res.status(400).json({ error: 'Restart is only available in the packaged app.' })
-  }
   if (updateState.status !== 'ready') {
     return res.status(400).json({ error: 'Update not ready.' })
   }

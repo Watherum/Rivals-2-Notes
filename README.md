@@ -92,7 +92,7 @@ Admins can manage other users from the **Admin** page (visible in the nav bar fo
 - **Set storage limits** — set or clear the attachment storage quota for any user
 - **Reset password** — set a new password for any user (useful if they've forgotten theirs). The user can then log in with the new password and change it themselves via Manage Data → User Settings → Change Password
 - **Delete users** — permanently removes a user's account, notes, and all attachments
-- **Check for Updates** — check GitHub for a new version. On Windows (packaged `.exe`): downloads the new exe to the same folder; an **Open Folder** button reveals it in Explorer and **Exit App** closes the current version so you can run the new one. On Mac/Linux (source install): downloads the release tarball, extracts it, runs `npm install` and `npm run build` automatically, then **Restart App** relaunches with the new version
+- **Check for Updates** — check GitHub for a new version. On Windows (packaged `.exe`): downloads the new exe to the same folder; an **Open Folder** button reveals it in Explorer and **Exit App** closes the current version so you can run the new one. On Windows (`npm run start`) or Mac/Linux (source install): downloads the release tarball, extracts it, runs `npm install` and `npm run build` automatically, then **Restart App** relaunches with the new version
 
 To grant admin access, open `users.json` and add `"isAdmin": true` to the user's entry:
 
@@ -195,7 +195,7 @@ All sections are collapsible — click any section header to expand or collapse 
 ### Admin Panel
 Admin-only page accessible from the nav bar. Includes all user management tools plus:
 - **Reset Password** — set a new temporary password for any user (for forgotten passwords). The user logs in with it and changes it via Manage Data → User Settings → Change Password.
-- **Check for Updates** — check GitHub for the latest version. On Windows (packaged `.exe`): downloads the new exe to the same folder, then shows **Open Folder** to reveal it in Explorer and **Exit App** to close the current version — run the new file to finish updating. On Mac/Linux (source install): downloads the release tarball, extracts it, runs `npm install` and `npm run build` automatically (with live phase progress), then **Restart App** relaunches with the new version. On unrecognised installs: links to the GitHub release page.
+- **Check for Updates** — check GitHub for the latest version. On Windows (packaged `.exe`): downloads the new exe to the same folder, then shows **Open Folder** to reveal it in Explorer and **Exit App** to close the current version — run the new file to finish updating. On Windows (`npm run start`) or Mac/Linux (source install): downloads the release tarball, extracts it, runs `npm install` and `npm run build` automatically (with live phase progress), then **Restart App** relaunches with the new version.
 - **Search users** — filter the user list by username in real time using the search bar above the table
 
 ---

@@ -330,7 +330,11 @@ export default function AdminPanel() {
 
       <section className="bg-[#16213e] rounded-lg p-5 space-y-3">
         <h2 className="text-lg font-semibold text-white">Check for Updates</h2>
-        <p className="text-sm text-gray-400">Check GitHub for the latest version of RoA2 Notes. If an update is found, it will be downloaded to the same folder as the current exe — then close this app and run the new file to update.</p>
+        <p className="text-sm text-gray-400">
+          {updateInfo?.isPackaged === false
+            ? 'Check GitHub for the latest version of RoA2 Notes. If an update is found, source files will be updated and rebuilt automatically — restart the server to apply.'
+            : 'Check GitHub for the latest version of RoA2 Notes. If an update is found, it will be downloaded to the same folder as the current exe — then close this app and run the new file to update.'}
+        </p>
 
         {updateInfo && (
           <p className="text-sm text-gray-400">
