@@ -80,8 +80,8 @@ The app requires an account to use. On first launch you'll be taken to the sign-
 - **Sign up** — choose a username (2–32 characters: letters, numbers, `-`, `_`) and a password. Enter the password twice to confirm.
 - **Sign in** — enter your username and password. Your session is remembered in the browser, so you won't need to sign in again unless you clear browser storage or sign out manually.
 - **Sign out** — click **Sign out** in the top navigation bar.
-- **Change password** — go to **Manage Data → Change Password**. Enter your current password and your new password twice to confirm.
-- **Profile photo** — go to **Manage Data → Profile Photo** to upload a photo (any image format, up to 5 MB). Your photo appears as a circle next to your username in the navigation bar. You can replace or remove it at any time.
+- **Change password** — go to **Manage Data → User Settings → Change Password**. Enter your current password and your new password twice to confirm.
+- **Profile photo** — go to **Manage Data → User Settings → Profile Photo** to upload a photo (any image format, up to 5 MB). Your photo appears as a circle next to your username in the navigation bar. You can replace or remove it at any time.
 
 Each account's notes and attachments are completely separate. Users can only see and access their own data. Accounts are stored in `users.json` alongside the rest of the app's data.
 
@@ -90,7 +90,7 @@ Each account's notes and attachments are completely separate. Users can only see
 Admins can manage other users from the **Admin** page (visible in the nav bar for admin accounts only):
 
 - **Set storage limits** — set or clear the attachment storage quota for any user
-- **Reset password** — set a new password for any user (useful if they've forgotten theirs). The user can then log in with the new password and change it themselves via Manage Data → Change Password
+- **Reset password** — set a new password for any user (useful if they've forgotten theirs). The user can then log in with the new password and change it themselves via Manage Data → User Settings → Change Password
 - **Delete users** — permanently removes a user's account, notes, and all attachments
 - **Check for Updates** — check GitHub for a new version. On Windows (packaged `.exe`): downloads the new exe to the same folder; an **Open Folder** button reveals it in Explorer and **Exit App** closes the current version so you can run the new one. On Mac/Linux (source install): downloads the release tarball, extracts it, runs `npm install` and `npm run build` automatically, then **Restart App** relaunches with the new version
 
@@ -178,16 +178,23 @@ Quick links to useful external sites:
 - **Watherum's Discord** — community Discord
 
 ### Manage Data
-- **Profile Photo** — upload or remove your profile photo. Appears as a circle next to your username in the nav bar. Accepts any image format, up to 5 MB.
-- **Export** — downloads your notes and attachments as a single `roa2-notes-backup.zip` file
+All sections are collapsible — click any section header to expand or collapse it.
+
+- **User Settings** — personal account configuration, all in one place:
+  - **Profile Photo** — upload or remove your profile photo. Appears as a circle next to your username in the nav bar. Accepts any image format, up to 5 MB.
+  - **Change Password** — update your password after confirming your current one. New password must be at least 6 characters.
+  - **Attachment Storage** — set a personal size limit (in GB) for your attachments. Uploads that would exceed your limit are rejected. Each user sets their own limit independently. Leave blank for no limit.
+  - **Danger Zone** — destructive account actions, each requiring confirmation:
+    - **Delete All Data** — permanently deletes all your notes and attachments. Your account remains active.
+    - **Delete Account** — permanently deletes your account and all associated data. You are logged out immediately.
 - **GitHub Backup** — backs up your notes to a private GitHub Gist using a Personal Access Token. See [GitHub Backup](#github-backup) below.
-- **Import** — restores notes and attachments from a `.zip` backup, or notes only from a legacy `.json` backup. Imported notes are **appended** to existing ones (joined with a `---` separator); mains are merged without duplicates; players are matched by name and merged — same-name players have their character lists combined and notes merged rather than creating duplicates
-- **Change Password** — update your password after confirming your current one. New password must be at least 6 characters.
-- **Attachment Storage** — set a personal size limit (in GB) for your attachments. Uploads that would exceed your limit are rejected. Each user sets their own limit independently. Leave blank for no limit.
+- **Backup & Restore** — local file export and import:
+  - **Export Notes** — downloads your notes and attachments as a single `roa2-notes-backup.zip` file
+  - **Import Notes** — restores notes and attachments from a `.zip` backup, or notes only from a legacy `.json` backup. Imported notes are **appended** to existing ones (joined with a `---` separator); mains are merged without duplicates; players are matched by name and merged — same-name players have their character lists combined and notes merged rather than creating duplicates
 
 ### Admin Panel
 Admin-only page accessible from the nav bar. Includes all user management tools plus:
-- **Reset Password** — set a new temporary password for any user (for forgotten passwords). The user logs in with it and changes it via Manage Data → Change Password.
+- **Reset Password** — set a new temporary password for any user (for forgotten passwords). The user logs in with it and changes it via Manage Data → User Settings → Change Password.
 - **Check for Updates** — check GitHub for the latest version. On Windows (packaged `.exe`): downloads the new exe to the same folder, then shows **Open Folder** to reveal it in Explorer and **Exit App** to close the current version — run the new file to finish updating. On Mac/Linux (source install): downloads the release tarball, extracts it, runs `npm install` and `npm run build` automatically (with live phase progress), then **Restart App** relaunches with the new version. On unrecognised installs: links to the GitHub release page.
 - **Search users** — filter the user list by username in real time using the search bar above the table
 
@@ -228,12 +235,12 @@ Stored under `attachments/{username}/`, organized by source:
 ## Backup & Restore
 
 ### Export
-Go to **Manage Data → Download Backup**. This creates a `roa2-notes-backup.zip` containing only your own notes and attachments:
+Go to **Manage Data → Backup & Restore → Download Backup**. This creates a `roa2-notes-backup.zip` containing only your own notes and attachments:
 - `notes-export.json` — all your text notes
 - `attachments/` — all your uploaded images and videos
 
 ### Import
-Go to **Manage Data → Choose Backup File** and select either:
+Go to **Manage Data → Backup & Restore → Choose Backup File** and select either:
 - A `.zip` file (restores notes + attachments)
 - A legacy `.json` file (restores notes only)
 
@@ -254,7 +261,7 @@ Back up your notes to a private GitHub Gist for cloud storage and automatic vers
 
 #### Using it
 
-1. Go to **Manage Data → GitHub Backup**
+1. Go to **Manage Data → GitHub Backup** section
 2. Paste your token into the input field and click **Save Token**
 3. Click **Backup to GitHub** — your notes are uploaded to a new private gist on your account
 4. A **view on GitHub** link appears in the UI pointing to the gist

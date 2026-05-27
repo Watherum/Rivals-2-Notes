@@ -2,9 +2,22 @@ import { useEffect, useRef, useState } from 'react'
 import { exportNotes, importNotes } from '../hooks/useNotes'
 import { authFetch } from '../utils/api'
 import { useAuth } from '../contexts/AuthContext'
+import ConfirmModal from './ConfirmModal'
+
+function Chevron({ open }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className={`w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0 ${open ? 'rotate-180' : ''}`}
+      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  )
+}
 
 export default function ManageData() {
-  const { user, updateAvatar } = useAuth()
+  const { user, updateAvatar, logout } = useAuth()
   const avatarRef = useRef(null)
   const [avatarStatus, setAvatarStatus] = useState(null)
   const [avatarLoading, setAvatarLoading] = useState(false)
@@ -22,6 +35,11 @@ export default function ManageData() {
   const [pwStatus, setPwStatus] = useState(null)
   const [pwLoading, setPwLoading] = useState(false)
 
+  const [showDeleteDataConfirm, setShowDeleteDataConfirm] = useState(false)
+  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false)
+  const [deleteDataStatus, setDeleteDataStatus] = useState(null)
+  const [deleteDataLoading, setDeleteDataLoading] = useState(false)
+
   const [githubPat, setGithubPat] = useState('')
   const [githubPatSet, setGithubPatSet] = useState(false)
   const [githubGistUrl, setGithubGistUrl] = useState(null)
@@ -29,6 +47,13 @@ export default function ManageData() {
   const [githubLoading, setGithubLoading] = useState(false)
   const [githubImportLoading, setGithubImportLoading] = useState(false)
   const [showPat, setShowPat] = useState(false)
+
+  const [open, setOpen] = useState({
+    profile: true,
+    export: true,
+    github: true,
+  })
+  const toggle = key => setOpen(o => ({ ...o, [key]: !o[key] }))
 
   useEffect(() => {
     authFetch('/api/attachments/size').then(r => r.json()).then(d => setUsedBytes(d.bytes)).catch(() => {})
@@ -95,6 +120,29 @@ export default function ManageData() {
       setPwStatus({ ok: false, message: 'Failed to change password.' })
     } finally {
       setPwLoading(false)
+    }
+  }
+
+  async function handleDeleteAllData() {
+    setDeleteDataStatus(null)
+    setDeleteDataLoading(true)
+    try {
+      const r = await authFetch('/api/auth/data', { method: 'DELETE' })
+      const data = await r.json()
+      if (!r.ok) return setDeleteDataStatus({ ok: false, message: data.error || 'Failed to delete data.' })
+      setDeleteDataStatus({ ok: true, message: 'All data deleted.' })
+    } catch {
+      setDeleteDataStatus({ ok: false, message: 'Failed to delete data.' })
+    } finally {
+      setDeleteDataLoading(false)
+    }
+  }
+
+  async function handleDeleteAccount() {
+    try {
+      await authFetch('/api/auth/account', { method: 'DELETE' })
+    } finally {
+      logout()
     }
   }
 
@@ -210,235 +258,320 @@ export default function ManageData() {
     e.target.value = ''
   }
 
-  const btnClass = 'px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors'
-
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-6 pb-12">
       <h1 className="text-2xl font-bold text-white pt-2">Manage Data</h1>
 
-      <section className="bg-[#16213e] rounded-lg p-5 space-y-3">
-        <h2 className="text-lg font-semibold text-white">Profile Photo</h2>
-        <div className="flex items-center gap-4">
-          {user?.avatarUrl ? (
-            <img src={user.avatarUrl} alt="Profile" className="w-16 h-16 rounded-full object-cover border-2 border-[#0f3460]" />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-[#0f3460] flex items-center justify-center text-white text-xl font-bold select-none">
-              {user?.username?.[0]?.toUpperCase()}
+      {/* User Settings */}
+      <section className="bg-[#16213e] rounded-lg overflow-hidden">
+        <button
+          onClick={() => toggle('profile')}
+          className="flex items-center justify-between w-full text-left px-5 py-4"
+        >
+          <h2 className="text-lg font-semibold text-white">User Settings</h2>
+          <Chevron open={open.profile} />
+        </button>
+        {open.profile && (
+          <div className="px-5 pb-5 space-y-5">
+            {/* Profile Photo */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-white">Profile Photo</p>
+              <div className="flex items-center gap-4">
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="Profile" className="w-16 h-16 rounded-full object-cover border-2 border-[#0f3460]" />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-[#0f3460] flex items-center justify-center text-white text-xl font-bold select-none">
+                    {user?.username?.[0]?.toUpperCase()}
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => avatarRef.current.click()}
+                    disabled={avatarLoading}
+                    className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {avatarLoading ? 'Uploading…' : user?.avatarUrl ? 'Change Photo' : 'Upload Photo'}
+                  </button>
+                  {user?.avatarUrl && (
+                    <button
+                      onClick={handleAvatarRemove}
+                      disabled={avatarLoading}
+                      className="px-4 py-2 rounded-lg border border-gray-600 text-gray-400 text-sm font-medium hover:border-red-500 hover:text-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Remove Photo
+                    </button>
+                  )}
+                </div>
+              </div>
+              <input ref={avatarRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+              {avatarStatus && (
+                <p className={`text-sm ${avatarStatus.ok ? 'text-green-400' : 'text-red-400'}`}>{avatarStatus.message}</p>
+              )}
             </div>
-          )}
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={() => avatarRef.current.click()}
-              disabled={avatarLoading}
-              className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {avatarLoading ? 'Uploading…' : user?.avatarUrl ? 'Change Photo' : 'Upload Photo'}
-            </button>
-            {user?.avatarUrl && (
-              <button
-                onClick={handleAvatarRemove}
-                disabled={avatarLoading}
-                className="px-4 py-2 rounded-lg border border-gray-600 text-gray-400 text-sm font-medium hover:border-red-500 hover:text-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Remove Photo
-              </button>
-            )}
+            <div className="border-t border-[#0f3460]" />
+            {/* Change Password */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-white">Change Password</p>
+              <form onSubmit={changePassword} className="space-y-3">
+                <div className="space-y-2">
+                  <input
+                    type="password"
+                    placeholder="Current password"
+                    value={pwCurrent}
+                    onChange={e => { setPwCurrent(e.target.value); setPwStatus(null) }}
+                    autoComplete="current-password"
+                    className="w-full px-3 py-2 rounded-lg bg-[#0f3460] text-white text-sm border border-[#0f3460] focus:border-[#e94560] focus:outline-none placeholder-gray-500"
+                  />
+                  <input
+                    type="password"
+                    placeholder="New password"
+                    value={pwNew}
+                    onChange={e => { setPwNew(e.target.value); setPwStatus(null) }}
+                    autoComplete="new-password"
+                    className="w-full px-3 py-2 rounded-lg bg-[#0f3460] text-white text-sm border border-[#0f3460] focus:border-[#e94560] focus:outline-none placeholder-gray-500"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={pwConfirm}
+                    onChange={e => { setPwConfirm(e.target.value); setPwStatus(null) }}
+                    autoComplete="new-password"
+                    className="w-full px-3 py-2 rounded-lg bg-[#0f3460] text-white text-sm border border-[#0f3460] focus:border-[#e94560] focus:outline-none placeholder-gray-500"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={pwLoading || !pwCurrent || !pwNew || !pwConfirm}
+                  className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {pwLoading ? 'Saving…' : 'Change Password'}
+                </button>
+                {pwStatus && (
+                  <p className={`text-sm ${pwStatus.ok ? 'text-green-400' : 'text-red-400'}`}>{pwStatus.message}</p>
+                )}
+              </form>
+            </div>
+            <div className="border-t border-[#0f3460]" />
+            {/* Attachment Storage */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-white">Attachment Storage</p>
+              <p className="text-sm text-gray-400">
+                Set a maximum size for the attachments directory. Uploads that would exceed the limit are rejected.
+                Leave blank or set to 0 for no limit.
+              </p>
+              {usedBytes != null && (
+                <p className="text-sm text-gray-300">
+                  Currently using: <span className="text-white font-medium">{formatBytes(usedBytes)}</span>
+                  {limitGB && parseFloat(limitGB) > 0 && (
+                    <span className="text-gray-400"> / {limitGB} GB</span>
+                  )}
+                </p>
+              )}
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="No limit"
+                  value={limitGB}
+                  onChange={e => { setLimitGB(e.target.value); setLimitStatus(null) }}
+                  className="w-32 px-3 py-1.5 rounded-lg bg-[#0f3460] text-white text-sm border border-[#0f3460] focus:border-[#e94560] focus:outline-none"
+                />
+                <span className="text-sm text-gray-400">GB</span>
+                <button
+                  onClick={saveLimit}
+                  className="px-4 py-1.5 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+              {limitStatus && (
+                <p className={`text-sm ${limitStatus.ok ? 'text-green-400' : 'text-red-400'}`}>{limitStatus.message}</p>
+              )}
+            </div>
+            <div className="border-t border-[#0f3460]" />
+            {/* Danger Zone */}
+            <div className="space-y-5">
+              <p className="text-sm font-medium text-white">Danger Zone</p>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-300">Delete All Data</p>
+                <p className="text-sm text-gray-400">Permanently delete all your notes and attachments. Your account will remain active.</p>
+                <button
+                  onClick={() => { setDeleteDataStatus(null); setShowDeleteDataConfirm(true) }}
+                  disabled={deleteDataLoading}
+                  className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Delete All Data
+                </button>
+                {deleteDataStatus && (
+                  <p className={`text-sm ${deleteDataStatus.ok ? 'text-green-400' : 'text-red-400'}`}>{deleteDataStatus.message}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-300">Delete Account</p>
+                <p className="text-sm text-gray-400">Permanently delete your account and all associated data. You will be logged out immediately. This cannot be undone.</p>
+                <button
+                  onClick={() => setShowDeleteAccountConfirm(true)}
+                  className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors"
+                >
+                  Delete Account
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-        <input ref={avatarRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
-        {avatarStatus && (
-          <p className={`text-sm ${avatarStatus.ok ? 'text-green-400' : 'text-red-400'}`}>{avatarStatus.message}</p>
         )}
       </section>
 
-      <section className="bg-[#16213e] rounded-lg p-5 space-y-3">
-        <h2 className="text-lg font-semibold text-white">Export Notes</h2>
-        <p className="text-sm text-gray-400">Download all your notes and attachments as a zip backup file. Use this to transfer data between devices or keep a backup.</p>
+      {/* GitHub Backup */}
+      <section className="bg-[#16213e] rounded-lg overflow-hidden">
         <button
-          onClick={exportNotes}
-          className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors"
+          onClick={() => toggle('github')}
+          className="flex items-center justify-between w-full text-left px-5 py-4"
         >
-          Download Backup (.zip)
+          <h2 className="text-lg font-semibold text-white">GitHub Backup</h2>
+          <Chevron open={open.github} />
         </button>
+        {open.github && (
+          <div className="px-5 pb-5 space-y-3">
+            <p className="text-sm text-gray-400">Back up your notes to a private GitHub Gist. Attachments are not included.</p>
+
+            <details className="text-sm">
+              <summary className="cursor-pointer text-[#e94560] hover:opacity-80 transition-opacity select-none">How to get a GitHub token</summary>
+              <ol className="mt-2 space-y-1 text-gray-400 list-decimal list-inside pl-2">
+                <li>Go to <strong className="text-gray-300">github.com</strong> → your profile picture → <strong className="text-gray-300">Settings</strong></li>
+                <li>Scroll down and click <strong className="text-gray-300">Developer settings</strong></li>
+                <li>Go to <strong className="text-gray-300">Personal access tokens</strong> → <strong className="text-gray-300">Tokens (classic)</strong></li>
+                <li>Click <strong className="text-gray-300">Generate new token (classic)</strong></li>
+                <li>Give it a name like <em className="text-gray-300">RoA2 Notes Backup</em> and check only the <code className="bg-[#0f3460] px-1 rounded text-gray-200">gist</code> scope</li>
+                <li>Click <strong className="text-gray-300">Generate token</strong> — copy it immediately, you won&apos;t see it again</li>
+              </ol>
+            </details>
+
+            <div className="space-y-2">
+              {githubPatSet && (
+                <p className="text-xs text-gray-400">A token is already saved. Enter a new one to replace it.</p>
+              )}
+              <div className="flex items-center gap-2">
+                <input
+                  type={showPat ? 'text' : 'password'}
+                  placeholder={githubPatSet ? 'Enter new token to replace…' : 'ghp_…'}
+                  value={githubPat}
+                  onChange={e => { setGithubPat(e.target.value); setGithubStatus(null) }}
+                  className="flex-1 px-3 py-2 rounded-lg bg-[#0f3460] text-white text-sm border border-[#0f3460] focus:border-[#e94560] focus:outline-none placeholder-gray-500 font-mono"
+                />
+                <button
+                  onClick={() => setShowPat(v => !v)}
+                  className="px-3 py-2 rounded-lg bg-[#0f3460] text-gray-400 text-xs hover:text-white transition-colors whitespace-nowrap"
+                >
+                  {showPat ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={saveGithubToken}
+                  disabled={!githubPat.trim()}
+                  className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save Token
+                </button>
+                {githubPatSet && (
+                  <button
+                    onClick={removeGithubToken}
+                    className="px-4 py-2 rounded-lg border border-gray-600 text-gray-400 text-sm font-medium hover:border-red-500 hover:text-red-400 transition-colors"
+                  >
+                    Remove Token
+                  </button>
+                )}
+                <button
+                  onClick={backupToGithub}
+                  disabled={!githubPatSet || githubLoading}
+                  className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {githubLoading ? 'Backing up…' : 'Backup to GitHub'}
+                </button>
+                <button
+                  onClick={importFromGithub}
+                  disabled={!githubPatSet || githubImportLoading}
+                  className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {githubImportLoading ? 'Importing…' : 'Import from GitHub'}
+                </button>
+              </div>
+            </div>
+
+            {githubGistUrl && !githubStatus?.gistUrl && (
+              <p className="text-sm text-gray-400">
+                Last backup: <a href={githubGistUrl} target="_blank" rel="noopener noreferrer" className="text-[#e94560] hover:underline">view on GitHub</a>
+              </p>
+            )}
+            {githubStatus && (
+              <p className={`text-sm ${githubStatus.ok ? 'text-green-400' : 'text-red-400'}`}>
+                {githubStatus.message}
+                {githubStatus.gistUrl && (
+                  <> — <a href={githubStatus.gistUrl} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">view on GitHub</a></>
+                )}
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
-      <section className="bg-[#16213e] rounded-lg p-5 space-y-3">
-        <h2 className="text-lg font-semibold text-white">GitHub Backup</h2>
-        <p className="text-sm text-gray-400">Back up your notes to a private GitHub Gist. Attachments are not included.</p>
-
-        <details className="text-sm">
-          <summary className="cursor-pointer text-[#e94560] hover:opacity-80 transition-opacity select-none">How to get a GitHub token</summary>
-          <ol className="mt-2 space-y-1 text-gray-400 list-decimal list-inside pl-2">
-            <li>Go to <strong className="text-gray-300">github.com</strong> → your profile picture → <strong className="text-gray-300">Settings</strong></li>
-            <li>Scroll down and click <strong className="text-gray-300">Developer settings</strong></li>
-            <li>Go to <strong className="text-gray-300">Personal access tokens</strong> → <strong className="text-gray-300">Tokens (classic)</strong></li>
-            <li>Click <strong className="text-gray-300">Generate new token (classic)</strong></li>
-            <li>Give it a name like <em className="text-gray-300">RoA2 Notes Backup</em> and check only the <code className="bg-[#0f3460] px-1 rounded text-gray-200">gist</code> scope</li>
-            <li>Click <strong className="text-gray-300">Generate token</strong> — copy it immediately, you won&apos;t see it again</li>
-          </ol>
-        </details>
-
-        <div className="space-y-2">
-          {githubPatSet && (
-            <p className="text-xs text-gray-400">A token is already saved. Enter a new one to replace it.</p>
-          )}
-          <div className="flex items-center gap-2">
-            <input
-              type={showPat ? 'text' : 'password'}
-              placeholder={githubPatSet ? 'Enter new token to replace…' : 'ghp_…'}
-              value={githubPat}
-              onChange={e => { setGithubPat(e.target.value); setGithubStatus(null) }}
-              className="flex-1 px-3 py-2 rounded-lg bg-[#0f3460] text-white text-sm border border-[#0f3460] focus:border-[#e94560] focus:outline-none placeholder-gray-500 font-mono"
-            />
-            <button
-              onClick={() => setShowPat(v => !v)}
-              className="px-3 py-2 rounded-lg bg-[#0f3460] text-gray-400 text-xs hover:text-white transition-colors whitespace-nowrap"
-            >
-              {showPat ? 'Hide' : 'Show'}
-            </button>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={saveGithubToken}
-              disabled={!githubPat.trim()}
-              className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Save Token
-            </button>
-            {githubPatSet && (
-              <button
-                onClick={removeGithubToken}
-                className="px-4 py-2 rounded-lg border border-gray-600 text-gray-400 text-sm font-medium hover:border-red-500 hover:text-red-400 transition-colors"
-              >
-                Remove Token
-              </button>
-            )}
-            <button
-              onClick={backupToGithub}
-              disabled={!githubPatSet || githubLoading}
-              className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {githubLoading ? 'Backing up…' : 'Backup to GitHub'}
-            </button>
-            <button
-              onClick={importFromGithub}
-              disabled={!githubPatSet || githubImportLoading}
-              className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {githubImportLoading ? 'Importing…' : 'Import from GitHub'}
-            </button>
-          </div>
-        </div>
-
-        {githubGistUrl && !githubStatus?.gistUrl && (
-          <p className="text-sm text-gray-400">
-            Last backup: <a href={githubGistUrl} target="_blank" rel="noopener noreferrer" className="text-[#e94560] hover:underline">view on GitHub</a>
-          </p>
-        )}
-        {githubStatus && (
-          <p className={`text-sm ${githubStatus.ok ? 'text-green-400' : 'text-red-400'}`}>
-            {githubStatus.message}
-            {githubStatus.gistUrl && (
-              <> — <a href={githubStatus.gistUrl} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">view on GitHub</a></>
-            )}
-          </p>
-        )}
-      </section>
-
-      <section className="bg-[#16213e] rounded-lg p-5 space-y-3">
-        <h2 className="text-lg font-semibold text-white">Import Notes</h2>
-        <p className="text-sm text-gray-400">Restore notes and attachments from a previously exported backup. Accepts a <code className="text-gray-300">.zip</code> (notes + attachments) or a legacy <code className="text-gray-300">.json</code> file. Imported notes are appended to existing ones; mains and player lists are merged.</p>
+      {/* Export & Import Notes */}
+      <section className="bg-[#16213e] rounded-lg overflow-hidden">
         <button
-          onClick={() => importRef.current.click()}
-          className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors"
+          onClick={() => toggle('export')}
+          className="flex items-center justify-between w-full text-left px-5 py-4"
         >
-          Choose Backup File
+          <h2 className="text-lg font-semibold text-white">Backup & Restore</h2>
+          <Chevron open={open.export} />
         </button>
-        <input ref={importRef} type="file" accept=".json,.zip" onChange={handleImport} className="hidden" />
-        {importStatus && (
-          <p className={`text-sm mt-2 ${importStatus.ok ? 'text-green-400' : 'text-red-400'}`}>
-            {importStatus.message}
-          </p>
-        )}
-      </section>
-      <section className="bg-[#16213e] rounded-lg p-5 space-y-3">
-        <h2 className="text-lg font-semibold text-white">Change Password</h2>
-        <form onSubmit={changePassword} className="space-y-3">
-          <div className="space-y-2">
-            <input
-              type="password"
-              placeholder="Current password"
-              value={pwCurrent}
-              onChange={e => { setPwCurrent(e.target.value); setPwStatus(null) }}
-              autoComplete="current-password"
-              className="w-full px-3 py-2 rounded-lg bg-[#0f3460] text-white text-sm border border-[#0f3460] focus:border-[#e94560] focus:outline-none placeholder-gray-500"
-            />
-            <input
-              type="password"
-              placeholder="New password"
-              value={pwNew}
-              onChange={e => { setPwNew(e.target.value); setPwStatus(null) }}
-              autoComplete="new-password"
-              className="w-full px-3 py-2 rounded-lg bg-[#0f3460] text-white text-sm border border-[#0f3460] focus:border-[#e94560] focus:outline-none placeholder-gray-500"
-            />
-            <input
-              type="password"
-              placeholder="Confirm new password"
-              value={pwConfirm}
-              onChange={e => { setPwConfirm(e.target.value); setPwStatus(null) }}
-              autoComplete="new-password"
-              className="w-full px-3 py-2 rounded-lg bg-[#0f3460] text-white text-sm border border-[#0f3460] focus:border-[#e94560] focus:outline-none placeholder-gray-500"
-            />
+        {open.export && (
+          <div className="px-5 pb-5 space-y-5">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-white">Export Notes</p>
+              <p className="text-sm text-gray-400">Download all your notes and attachments as a zip backup file. Use this to transfer data between devices or keep a backup.</p>
+              <button
+                onClick={exportNotes}
+                className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors"
+              >
+                Download Backup (.zip)
+              </button>
+            </div>
+            <div className="border-t border-[#0f3460]" />
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-white">Import Notes</p>
+              <p className="text-sm text-gray-400">Restore notes and attachments from a previously exported backup. Accepts a <code className="text-gray-300">.zip</code> (notes + attachments) or a legacy <code className="text-gray-300">.json</code> file. Imported notes are appended to existing ones; mains and player lists are merged.</p>
+              <button
+                onClick={() => importRef.current.click()}
+                className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors"
+              >
+                Choose Backup File
+              </button>
+              <input ref={importRef} type="file" accept=".json,.zip" onChange={handleImport} className="hidden" />
+              {importStatus && (
+                <p className={`text-sm ${importStatus.ok ? 'text-green-400' : 'text-red-400'}`}>
+                  {importStatus.message}
+                </p>
+              )}
+            </div>
           </div>
-          <button
-            type="submit"
-            disabled={pwLoading || !pwCurrent || !pwNew || !pwConfirm}
-            className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {pwLoading ? 'Saving…' : 'Change Password'}
-          </button>
-          {pwStatus && (
-            <p className={`text-sm ${pwStatus.ok ? 'text-green-400' : 'text-red-400'}`}>{pwStatus.message}</p>
-          )}
-        </form>
+        )}
       </section>
 
-      <section className="bg-[#16213e] rounded-lg p-5 space-y-3">
-        <h2 className="text-lg font-semibold text-white">Attachment Storage</h2>
-        <p className="text-sm text-gray-400">
-          Set a maximum size for the attachments directory. Uploads that would exceed the limit are rejected.
-          Leave blank or set to 0 for no limit.
-        </p>
-        {usedBytes != null && (
-          <p className="text-sm text-gray-300">
-            Currently using: <span className="text-white font-medium">{formatBytes(usedBytes)}</span>
-            {limitGB && parseFloat(limitGB) > 0 && (
-              <span className="text-gray-400"> / {limitGB} GB</span>
-            )}
-          </p>
-        )}
-        <div className="flex items-center gap-3">
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            placeholder="No limit"
-            value={limitGB}
-            onChange={e => { setLimitGB(e.target.value); setLimitStatus(null) }}
-            className="w-32 px-3 py-1.5 rounded-lg bg-[#0f3460] text-white text-sm border border-[#0f3460] focus:border-[#e94560] focus:outline-none"
-          />
-          <span className="text-sm text-gray-400">GB</span>
-          <button
-            onClick={saveLimit}
-            className="px-4 py-1.5 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors"
-          >
-            Save
-          </button>
-        </div>
-        {limitStatus && (
-          <p className={`text-sm ${limitStatus.ok ? 'text-green-400' : 'text-red-400'}`}>{limitStatus.message}</p>
-        )}
-      </section>
+      {showDeleteDataConfirm && (
+        <ConfirmModal
+          message="This will permanently delete all your notes and attachments. Your account will remain. This cannot be undone."
+          onConfirm={() => { setShowDeleteDataConfirm(false); handleDeleteAllData() }}
+          onCancel={() => setShowDeleteDataConfirm(false)}
+        />
+      )}
+      {showDeleteAccountConfirm && (
+        <ConfirmModal
+          message="This will permanently delete your account and all associated data. You will be logged out immediately. This cannot be undone."
+          onConfirm={() => { setShowDeleteAccountConfirm(false); handleDeleteAccount() }}
+          onCancel={() => setShowDeleteAccountConfirm(false)}
+        />
+      )}
     </div>
   )
 }

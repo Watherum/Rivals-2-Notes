@@ -384,6 +384,23 @@ app.post('/api/auth/change-password', requireAuth, async (req, res) => {
   res.json({ ok: true })
 })
 
+app.delete('/api/auth/data', requireAuth, (req, res) => {
+  const { username } = req.user
+  fs.rmSync(userNotesDir(username), { recursive: true, force: true })
+  fs.rmSync(userAttachmentsDir(username), { recursive: true, force: true })
+  res.json({ ok: true })
+})
+
+app.delete('/api/auth/account', requireAuth, (req, res) => {
+  const { username } = req.user
+  const users = readUsers()
+  delete users[username]
+  writeUsers(users)
+  fs.rmSync(userNotesDir(username), { recursive: true, force: true })
+  fs.rmSync(userAttachmentsDir(username), { recursive: true, force: true })
+  res.json({ ok: true })
+})
+
 // --- Notes endpoints ---
 app.get('/api/notes', requireAuth, (req, res) => {
   res.json(readAllNotes(req.user.username))
