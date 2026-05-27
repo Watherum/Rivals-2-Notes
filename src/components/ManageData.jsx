@@ -22,10 +22,20 @@ export default function ManageData() {
   const [pwStatus, setPwStatus] = useState(null)
   const [pwLoading, setPwLoading] = useState(false)
 
+  const [githubPat, setGithubPat] = useState('')
+  const [githubPatSet, setGithubPatSet] = useState(false)
+  const [githubGistUrl, setGithubGistUrl] = useState(null)
+  const [githubStatus, setGithubStatus] = useState(null)
+  const [githubLoading, setGithubLoading] = useState(false)
+  const [githubImportLoading, setGithubImportLoading] = useState(false)
+  const [showPat, setShowPat] = useState(false)
+
   useEffect(() => {
     authFetch('/api/attachments/size').then(r => r.json()).then(d => setUsedBytes(d.bytes)).catch(() => {})
     authFetch('/api/settings').then(r => r.json()).then(d => {
       setLimitGB(d.attachmentLimitGB != null ? String(d.attachmentLimitGB) : '')
+      setGithubPatSet(!!d.githubPatSet)
+      setGithubGistUrl(d.githubGistUrl || null)
     }).catch(() => {})
   }, [])
 
@@ -85,6 +95,81 @@ export default function ManageData() {
       setPwStatus({ ok: false, message: 'Failed to change password.' })
     } finally {
       setPwLoading(false)
+    }
+  }
+
+  async function saveGithubToken() {
+    setGithubStatus(null)
+    const pat = githubPat.trim()
+    try {
+      const r = await authFetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ githubPat: pat }),
+      })
+      if (!r.ok) {
+        const d = await r.json()
+        return setGithubStatus({ ok: false, message: d.error || 'Failed to save token.' })
+      }
+      setGithubPatSet(true)
+      setGithubPat('')
+      setShowPat(false)
+      setGithubStatus({ ok: true, message: 'Token saved.' })
+    } catch {
+      setGithubStatus({ ok: false, message: 'Failed to save token.' })
+    }
+  }
+
+  async function removeGithubToken() {
+    setGithubStatus(null)
+    try {
+      const r = await authFetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ githubPat: '' }),
+      })
+      if (!r.ok) {
+        const d = await r.json()
+        return setGithubStatus({ ok: false, message: d.error || 'Failed to remove token.' })
+      }
+      setGithubPatSet(false)
+      setGithubGistUrl(null)
+      setGithubPat('')
+      setGithubStatus({ ok: true, message: 'Token removed.' })
+    } catch {
+      setGithubStatus({ ok: false, message: 'Failed to remove token.' })
+    }
+  }
+
+  async function backupToGithub() {
+    setGithubStatus(null)
+    setGithubLoading(true)
+    try {
+      const r = await authFetch('/api/github-backup', { method: 'POST' })
+      const d = await r.json()
+      if (!r.ok) return setGithubStatus({ ok: false, message: d.error || 'Backup failed.' })
+      setGithubGistUrl(d.gistUrl)
+      setGithubStatus({ ok: true, message: 'Backup complete!', gistUrl: d.gistUrl })
+    } catch {
+      setGithubStatus({ ok: false, message: 'Backup failed.' })
+    } finally {
+      setGithubLoading(false)
+    }
+  }
+
+  async function importFromGithub() {
+    setGithubStatus(null)
+    setGithubImportLoading(true)
+    try {
+      const r = await authFetch('/api/github-import', { method: 'POST' })
+      const d = await r.json()
+      if (!r.ok) return setGithubStatus({ ok: false, message: d.error || 'Import failed.' })
+      setGithubStatus({ ok: true, message: `Import complete! ${d.notes} notes merged. Reloading…` })
+      setTimeout(() => window.location.reload(), 1000)
+    } catch {
+      setGithubStatus({ ok: false, message: 'Import failed.' })
+    } finally {
+      setGithubImportLoading(false)
     }
   }
 
@@ -174,6 +259,89 @@ export default function ManageData() {
         >
           Download Backup (.zip)
         </button>
+      </section>
+
+      <section className="bg-[#16213e] rounded-lg p-5 space-y-3">
+        <h2 className="text-lg font-semibold text-white">GitHub Backup</h2>
+        <p className="text-sm text-gray-400">Back up your notes to a private GitHub Gist. Attachments are not included.</p>
+
+        <details className="text-sm">
+          <summary className="cursor-pointer text-[#e94560] hover:opacity-80 transition-opacity select-none">How to get a GitHub token</summary>
+          <ol className="mt-2 space-y-1 text-gray-400 list-decimal list-inside pl-2">
+            <li>Go to <strong className="text-gray-300">github.com</strong> → your profile picture → <strong className="text-gray-300">Settings</strong></li>
+            <li>Scroll down and click <strong className="text-gray-300">Developer settings</strong></li>
+            <li>Go to <strong className="text-gray-300">Personal access tokens</strong> → <strong className="text-gray-300">Tokens (classic)</strong></li>
+            <li>Click <strong className="text-gray-300">Generate new token (classic)</strong></li>
+            <li>Give it a name like <em className="text-gray-300">RoA2 Notes Backup</em> and check only the <code className="bg-[#0f3460] px-1 rounded text-gray-200">gist</code> scope</li>
+            <li>Click <strong className="text-gray-300">Generate token</strong> — copy it immediately, you won&apos;t see it again</li>
+          </ol>
+        </details>
+
+        <div className="space-y-2">
+          {githubPatSet && (
+            <p className="text-xs text-gray-400">A token is already saved. Enter a new one to replace it.</p>
+          )}
+          <div className="flex items-center gap-2">
+            <input
+              type={showPat ? 'text' : 'password'}
+              placeholder={githubPatSet ? 'Enter new token to replace…' : 'ghp_…'}
+              value={githubPat}
+              onChange={e => { setGithubPat(e.target.value); setGithubStatus(null) }}
+              className="flex-1 px-3 py-2 rounded-lg bg-[#0f3460] text-white text-sm border border-[#0f3460] focus:border-[#e94560] focus:outline-none placeholder-gray-500 font-mono"
+            />
+            <button
+              onClick={() => setShowPat(v => !v)}
+              className="px-3 py-2 rounded-lg bg-[#0f3460] text-gray-400 text-xs hover:text-white transition-colors whitespace-nowrap"
+            >
+              {showPat ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={saveGithubToken}
+              disabled={!githubPat.trim()}
+              className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save Token
+            </button>
+            {githubPatSet && (
+              <button
+                onClick={removeGithubToken}
+                className="px-4 py-2 rounded-lg border border-gray-600 text-gray-400 text-sm font-medium hover:border-red-500 hover:text-red-400 transition-colors"
+              >
+                Remove Token
+              </button>
+            )}
+            <button
+              onClick={backupToGithub}
+              disabled={!githubPatSet || githubLoading}
+              className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {githubLoading ? 'Backing up…' : 'Backup to GitHub'}
+            </button>
+            <button
+              onClick={importFromGithub}
+              disabled={!githubPatSet || !githubGistUrl || githubImportLoading}
+              className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {githubImportLoading ? 'Importing…' : 'Import from GitHub'}
+            </button>
+          </div>
+        </div>
+
+        {githubGistUrl && !githubStatus?.gistUrl && (
+          <p className="text-sm text-gray-400">
+            Last backup: <a href={githubGistUrl} target="_blank" rel="noopener noreferrer" className="text-[#e94560] hover:underline">view on GitHub</a>
+          </p>
+        )}
+        {githubStatus && (
+          <p className={`text-sm ${githubStatus.ok ? 'text-green-400' : 'text-red-400'}`}>
+            {githubStatus.message}
+            {githubStatus.gistUrl && (
+              <> — <a href={githubStatus.gistUrl} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">view on GitHub</a></>
+            )}
+          </p>
+        )}
       </section>
 
       <section className="bg-[#16213e] rounded-lg p-5 space-y-3">

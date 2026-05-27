@@ -174,6 +174,7 @@ Quick links to useful external sites:
 ### Manage Data
 - **Profile Photo** — upload or remove your profile photo. Appears as a circle next to your username in the nav bar. Accepts any image format, up to 5 MB.
 - **Export** — downloads your notes and attachments as a single `roa2-notes-backup.zip` file
+- **GitHub Backup** — backs up your notes to a private GitHub Gist using a Personal Access Token. See [GitHub Backup](#github-backup) below.
 - **Import** — restores notes and attachments from a `.zip` backup, or notes only from a legacy `.json` backup. Imported notes are **appended** to existing ones (joined with a `---` separator); mains and player lists are merged rather than replaced
 - **Change Password** — update your password after confirming your current one. New password must be at least 6 characters.
 - **Attachment Storage** — set a personal size limit (in GB) for your attachments. Uploads that would exceed your limit are rejected. Each user sets their own limit independently. Leave blank for no limit.
@@ -231,6 +232,34 @@ Go to **Manage Data → Choose Backup File** and select either:
 - A legacy `.json` file (restores notes only)
 
 Imported notes are appended to any existing content using a `---` separator, so nothing is lost. Mains and player lists are merged — existing entries are kept and new ones are added alongside them.
+
+### GitHub Backup
+
+Back up your notes to a private GitHub Gist for cloud storage and automatic version history. Attachments are not included — only text notes.
+
+#### Setup
+
+1. Go to [github.com](https://github.com) → your profile picture → **Settings**
+2. Scroll down and click **Developer settings**
+3. Go to **Personal access tokens → Tokens (classic)**
+4. Click **Generate new token (classic)**
+5. Give it a name (e.g. `RoA2 Notes Backup`) and check only the **`gist`** scope
+6. Click **Generate token** — copy it immediately, you won't see it again
+
+#### Using it
+
+1. Go to **Manage Data → GitHub Backup**
+2. Paste your token into the input field and click **Save Token**
+3. Click **Backup to GitHub** — your notes are uploaded to a new private gist on your account
+4. A **view on GitHub** link appears in the UI pointing to the gist
+
+Subsequent backups update the same gist rather than creating a new one, so GitHub automatically keeps a full revision history of every backup you've made.
+
+To stop using the feature, click **Remove Token** — this clears the stored token and the link to the existing gist.
+
+#### Importing from GitHub
+
+Once a backup exists, an **Import from GitHub** button appears alongside the backup button. Clicking it fetches your latest Gist and merges the notes into your current data using the same rules as zip import — text notes are appended with a `---` separator, mains and player lists are merged without duplicates. The page reloads automatically once the import completes.
 
 ---
 

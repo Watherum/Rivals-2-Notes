@@ -353,8 +353,8 @@ app.delete('/api/notes/:key', requireAuth, (req, res) => {
 // --- Settings endpoints (per-user) ---
 app.get('/api/settings', requireAuth, (req, res) => {
   const users = readUsers()
-  const { attachmentLimitGB = null } = users[req.user.username] || {}
-  res.json({ attachmentLimitGB })
+  const { attachmentLimitGB = null, githubPat, githubGistId = null, githubGistUrl = null } = users[req.user.username] || {}
+  res.json({ attachmentLimitGB, githubPatSet: !!githubPat, githubGistId, githubGistUrl })
 })
 
 app.put('/api/settings', requireAuth, (req, res) => {
@@ -362,6 +362,15 @@ app.put('/api/settings', requireAuth, (req, res) => {
   if (!users[req.user.username]) return res.status(404).json({ error: 'User not found' })
   if ('attachmentLimitGB' in req.body) {
     users[req.user.username].attachmentLimitGB = req.body.attachmentLimitGB
+  }
+  if ('githubPat' in req.body) {
+    if (req.body.githubPat) {
+      users[req.user.username].githubPat = req.body.githubPat
+    } else {
+      delete users[req.user.username].githubPat
+      delete users[req.user.username].githubGistId
+      delete users[req.user.username].githubGistUrl
+    }
   }
   writeUsers(users)
   res.json({ ok: true })
@@ -541,6 +550,86 @@ app.post('/api/import', requireAuth, (req, res) => {
       res.status(400).json({ error: e.message })
     }
   })
+})
+
+// --- GitHub Gist backup ---
+app.post('/api/github-backup', requireAuth, async (req, res) => {
+  const username = req.user.username
+  const users = readUsers()
+  const { githubPat, githubGistId } = users[username] || {}
+
+  if (!githubPat) return res.status(400).json({ error: 'No GitHub token configured. Add one in Manage Data.' })
+
+  const notes = readAllNotes(username)
+  const gistPayload = {
+    description: 'RoA2 Notes Backup',
+    public: false,
+    files: { 'roa2-notes-backup.json': { content: JSON.stringify(notes, null, 2) } },
+  }
+
+  try {
+    const headers = {
+      Authorization: `Bearer ${githubPat}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': 'application/json',
+      'User-Agent': 'RoA2-Notes-App',
+    }
+
+    const url = githubGistId ? `https://api.github.com/gists/${githubGistId}` : 'https://api.github.com/gists'
+    const method = githubGistId ? 'PATCH' : 'POST'
+    const ghRes = await fetch(url, { method, headers, body: JSON.stringify(gistPayload) })
+    const ghData = await ghRes.json()
+
+    if (!ghRes.ok) return res.status(ghRes.status).json({ error: ghData.message || 'GitHub API error' })
+
+    const freshUsers = readUsers()
+    freshUsers[username].githubGistId = ghData.id
+    freshUsers[username].githubGistUrl = ghData.html_url
+    writeUsers(freshUsers)
+
+    res.json({ ok: true, gistId: ghData.id, gistUrl: ghData.html_url })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// --- GitHub Gist import ---
+app.post('/api/github-import', requireAuth, async (req, res) => {
+  const username = req.user.username
+  const users = readUsers()
+  const { githubPat, githubGistId } = users[username] || {}
+
+  if (!githubPat) return res.status(400).json({ error: 'No GitHub token configured. Add one in Manage Data.' })
+  if (!githubGistId) return res.status(400).json({ error: 'No Gist linked. Run a backup first.' })
+
+  try {
+    const headers = {
+      Authorization: `Bearer ${githubPat}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'RoA2-Notes-App',
+    }
+
+    const ghRes = await fetch(`https://api.github.com/gists/${githubGistId}`, { headers })
+    const ghData = await ghRes.json()
+    if (!ghRes.ok) return res.status(ghRes.status).json({ error: ghData.message || 'GitHub API error' })
+
+    const fileEntry = ghData.files?.['roa2-notes-backup.json']
+    if (!fileEntry) return res.status(400).json({ error: 'Backup file not found in Gist.' })
+
+    let content = fileEntry.content
+    if (fileEntry.truncated) {
+      const rawRes = await fetch(fileEntry.raw_url, { headers })
+      content = await rawRes.text()
+    }
+
+    const notes = JSON.parse(content)
+    const count = writeNotes(notes, username, true)
+    res.json({ ok: true, notes: count })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
 })
 
 // --- Update helpers ---
