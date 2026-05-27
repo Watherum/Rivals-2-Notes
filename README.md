@@ -187,7 +187,7 @@ All sections are collapsible — click any section header to expand or collapse 
   - **Danger Zone** — destructive account actions, each requiring confirmation:
     - **Delete All Data** — permanently deletes all your notes and attachments. Your account remains active.
     - **Delete Account** — permanently deletes your account and all associated data. You are logged out immediately.
-- **GitHub Backup** — backs up your notes to a private GitHub Gist using a Personal Access Token. See [GitHub Backup](#github-backup) below.
+- **GitHub Backup** — backs up your notes and attachments to GitHub using a Personal Access Token. Two options are available — see [GitHub Backup](#github-backup) below.
 - **Backup & Restore** — local file export and import:
   - **Export Notes** — downloads your notes and attachments as a single `roa2-notes-backup.zip` file
   - **Import Notes** — restores notes and attachments from a `.zip` backup, or notes only from a legacy `.json` backup. Imported notes are **appended** to existing ones (joined with a `---` separator); mains are merged without duplicates; players are matched by name and merged — same-name players have their character lists combined and notes merged rather than creating duplicates
@@ -248,7 +248,14 @@ Imported notes are appended to any existing content using a `---` separator, so 
 
 ### GitHub Backup
 
-Back up your notes to a private GitHub Gist for cloud storage and automatic version history. Attachments are not included — only text notes.
+Back up your notes (and optionally attachments) to GitHub for cloud storage and automatic version history. Two backup methods are available — choose based on what you need:
+
+| | Gist Backup | Repository Backup |
+|---|---|---|
+| Notes | ✅ | ✅ |
+| Attachments | ❌ | ✅ |
+| Storage limit | ~100 MB total | 100 MB per file |
+| Token scope required | `gist` | `repo` |
 
 #### Setup
 
@@ -256,23 +263,37 @@ Back up your notes to a private GitHub Gist for cloud storage and automatic vers
 2. Scroll down and click **Developer settings**
 3. Go to **Personal access tokens → Tokens (classic)**
 4. Click **Generate new token (classic)**
-5. Give it a name (e.g. `RoA2 Notes Backup`) and check only the **`gist`** scope
+5. Give it a name (e.g. `RoA2 Notes Backup`) and choose your scope:
+   - **Gist backup only** → check the `gist` scope
+   - **Repository backup (notes + attachments)** → check the `repo` scope (this also covers gist)
 6. Click **Generate token** — copy it immediately, you won't see it again
 
-#### Using it
+> **Token expiration:** GitHub lets you set an expiration date when creating the token. Once it expires, backups and imports will fail until you generate a new token and save it in **Manage Data → GitHub Backup**. Either set a long expiration (e.g. 1 year) or choose "No expiration" if you don't want to worry about it.
 
-1. Go to **Manage Data → GitHub Backup** section
-2. Paste your token into the input field and click **Save Token**
+#### Gist Backup (notes only)
+
+1. Go to **Manage Data → GitHub Backup**
+2. Paste your token and click **Save Token**
 3. Click **Backup to GitHub** — your notes are uploaded to a new private gist on your account
-4. A **view on GitHub** link appears in the UI pointing to the gist
+4. A **view on GitHub** link appears pointing to the gist
 
-Subsequent backups update the same gist rather than creating a new one, so GitHub automatically keeps a full revision history of every backup you've made.
+Subsequent backups update the same gist, so GitHub automatically keeps a full revision history of every backup you've made.
 
-To stop using the feature, click **Remove Token** — this clears the stored token and the link to the existing gist.
+Click **Import from GitHub** to fetch your latest Gist and merge the notes into your current data using the same rules as zip import — text notes are appended with a `---` separator, mains are merged without duplicates, and players are matched by name.
 
-#### Importing from GitHub
+#### Repository Backup (notes + attachments)
 
-Once a backup exists, an **Import from GitHub** button appears alongside the backup button. Clicking it fetches your latest Gist and merges the notes into your current data using the same rules as zip import — text notes are appended with a `---` separator, mains are merged without duplicates, and players are matched by **name**: same-name players have their character lists combined and notes merged rather than creating duplicates. The page reloads automatically once the import completes.
+1. Go to **Manage Data → GitHub Backup → Repository Backup**
+2. Click **Backup to Repository** — the app creates a private `roa2-notes-backup` repository on your GitHub account (if it doesn't exist yet) and uploads all your notes and attachments as a single commit
+3. A **view on GitHub** link appears pointing to the repository
+
+Each backup creates a new commit, so you have a full history of every backup. Attachments are stored as binary files preserving the original folder structure. Files larger than 99 MB cannot be uploaded due to GitHub's 100 MB per-file API limit — any skipped files are listed in the UI with the reason so you know exactly what wasn't included.
+
+Click **Import from Repository** to download and restore all notes and attachments from your `roa2-notes-backup` repository. Notes are merged using the same rules as zip import. This works on any device — if no prior backup is recorded locally, the app automatically looks for a repository named `roa2-notes-backup` on your GitHub account.
+
+#### Removing your token
+
+Click **Remove Token** — this clears the stored token and all saved backup links (both Gist and Repository).
 
 ---
 

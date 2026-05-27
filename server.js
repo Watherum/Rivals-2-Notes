@@ -424,8 +424,8 @@ app.delete('/api/notes/:key', requireAuth, (req, res) => {
 // --- Settings endpoints (per-user) ---
 app.get('/api/settings', requireAuth, (req, res) => {
   const users = readUsers()
-  const { attachmentLimitGB = null, githubPat, githubGistId = null, githubGistUrl = null } = users[req.user.username] || {}
-  res.json({ attachmentLimitGB, githubPatSet: !!githubPat, githubGistId, githubGistUrl })
+  const { attachmentLimitGB = null, githubPat, githubGistId = null, githubGistUrl = null, githubRepoName = null, githubRepoUrl = null } = users[req.user.username] || {}
+  res.json({ attachmentLimitGB, githubPatSet: !!githubPat, githubGistId, githubGistUrl, githubRepoName, githubRepoUrl })
 })
 
 app.put('/api/settings', requireAuth, (req, res) => {
@@ -441,6 +441,8 @@ app.put('/api/settings', requireAuth, (req, res) => {
       delete users[req.user.username].githubPat
       delete users[req.user.username].githubGistId
       delete users[req.user.username].githubGistUrl
+      delete users[req.user.username].githubRepoName
+      delete users[req.user.username].githubRepoUrl
     }
   }
   writeUsers(users)
@@ -722,6 +724,222 @@ app.post('/api/github-import', requireAuth, async (req, res) => {
     const notes = JSON.parse(content)
     const count = writeNotes(notes, username, true)
     res.json({ ok: true, notes: count, gistUrl: ghData.html_url })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// --- GitHub Repository backup helpers ---
+function githubApiHeaders(pat) {
+  return {
+    Authorization: `Bearer ${pat}`,
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+    'User-Agent': 'RoA2-Notes-App',
+  }
+}
+
+async function getGithubLogin(pat) {
+  const res = await fetch('https://api.github.com/user', { headers: githubApiHeaders(pat) })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.message || 'Could not verify GitHub token. Make sure it has the repo scope.')
+  }
+  const data = await res.json()
+  return data.login
+}
+
+function enumerateUserFiles(username) {
+  const files = []
+  const notes = readAllNotes(username)
+  files.push({ repoPath: 'notes-export.json', content: JSON.stringify(notes, null, 2), encoding: 'utf-8' })
+  const attDir = userAttachmentsDir(username)
+  function walk(dir, relBase) {
+    for (const entry of fs.readdirSync(dir)) {
+      const full = path.join(dir, entry)
+      const rel = relBase ? `${relBase}/${entry}` : entry
+      const stat = fs.statSync(full)
+      if (stat.isDirectory()) walk(full, rel)
+      else files.push({ repoPath: `attachments/${rel}`, localPath: full, size: stat.size, encoding: 'binary' })
+    }
+  }
+  if (fs.existsSync(attDir)) walk(attDir, '')
+  return files
+}
+
+// --- GitHub Repository backup ---
+app.post('/api/github-repo-backup', requireAuth, async (req, res) => {
+  const username = req.user.username
+  const users = readUsers()
+  const { githubPat } = users[username] || {}
+  if (!githubPat) return res.status(400).json({ error: 'No GitHub token configured. Add one in Manage Data.' })
+
+  const REPO_NAME = 'roa2-notes-backup'
+  const SKIP_BYTES = 99 * 1024 * 1024
+
+  try {
+    const headers = githubApiHeaders(githubPat)
+    const owner = await getGithubLogin(githubPat)
+    const repoApiBase = `https://api.github.com/repos/${owner}/${REPO_NAME}`
+
+    // Ensure repo exists
+    const repoRes = await fetch(repoApiBase, { headers })
+    if (repoRes.status === 404) {
+      const createRes = await fetch('https://api.github.com/user/repos', {
+        method: 'POST', headers,
+        body: JSON.stringify({ name: REPO_NAME, private: true, auto_init: true, description: 'RoA2 Notes Backup' }),
+      })
+      if (!createRes.ok) {
+        const d = await createRes.json()
+        return res.status(createRes.status).json({ error: d.message || 'Failed to create backup repository.' })
+      }
+    } else if (!repoRes.ok) {
+      const d = await repoRes.json()
+      return res.status(repoRes.status).json({ error: d.message || 'Failed to access backup repository.' })
+    }
+
+    // Get HEAD commit SHA
+    const refRes = await fetch(`${repoApiBase}/git/ref/heads/main`, { headers })
+    if (!refRes.ok) {
+      const d = await refRes.json()
+      return res.status(refRes.status).json({ error: d.message || 'Failed to read repository HEAD.' })
+    }
+    const headCommitSha = (await refRes.json()).object.sha
+
+    // Enumerate and upload files as blobs
+    const files = enumerateUserFiles(username)
+    const skipped = []
+    const treeEntries = []
+
+    for (const f of files) {
+      try {
+        let blobBody
+        if (f.encoding === 'binary') {
+          if (f.size > SKIP_BYTES) {
+            skipped.push({ path: f.repoPath, reason: `File too large for GitHub (${(f.size / 1_000_000).toFixed(1)} MB — limit is 100 MB)` })
+            continue
+          }
+          blobBody = JSON.stringify({ content: fs.readFileSync(f.localPath).toString('base64'), encoding: 'base64' })
+        } else {
+          blobBody = JSON.stringify({ content: f.content, encoding: 'utf-8' })
+        }
+
+        const blobRes = await fetch(`${repoApiBase}/git/blobs`, { method: 'POST', headers, body: blobBody })
+        if (!blobRes.ok) {
+          const d = await blobRes.json()
+          if (blobRes.status === 403 || blobRes.status === 429) return res.status(429).json({ error: 'GitHub rate limit reached. Try again later.' })
+          skipped.push({ path: f.repoPath, reason: d.message || 'Upload failed' })
+          continue
+        }
+        const blobData = await blobRes.json()
+        treeEntries.push({ path: f.repoPath, mode: '100644', type: 'blob', sha: blobData.sha })
+      } catch (fileErr) {
+        skipped.push({ path: f.repoPath, reason: fileErr.message })
+      }
+    }
+
+    if (treeEntries.length === 0) return res.status(400).json({ error: 'No files could be uploaded. All files were skipped or failed.' })
+
+    // Create full-snapshot tree (no base_tree — clean state each backup)
+    const treeRes = await fetch(`${repoApiBase}/git/trees`, {
+      method: 'POST', headers, body: JSON.stringify({ tree: treeEntries }),
+    })
+    if (!treeRes.ok) {
+      const d = await treeRes.json()
+      return res.status(treeRes.status).json({ error: d.message || 'Failed to create repository tree.' })
+    }
+    const newTreeSha = (await treeRes.json()).sha
+
+    // Create commit
+    const commitRes = await fetch(`${repoApiBase}/git/commits`, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        message: `RoA2 Notes backup — ${new Date().toISOString()}`,
+        tree: newTreeSha,
+        parents: [headCommitSha],
+      }),
+    })
+    if (!commitRes.ok) {
+      const d = await commitRes.json()
+      return res.status(commitRes.status).json({ error: d.message || 'Failed to create commit.' })
+    }
+    const newCommitSha = (await commitRes.json()).sha
+
+    // Update branch ref
+    const updateRefRes = await fetch(`${repoApiBase}/git/refs/heads/main`, {
+      method: 'PATCH', headers, body: JSON.stringify({ sha: newCommitSha, force: true }),
+    })
+    if (!updateRefRes.ok) {
+      const d = await updateRefRes.json()
+      return res.status(updateRefRes.status).json({ error: d.message || 'Failed to update repository branch.' })
+    }
+
+    const repoUrl = `https://github.com/${owner}/${REPO_NAME}`
+    const freshUsers = readUsers()
+    freshUsers[username].githubRepoName = REPO_NAME
+    freshUsers[username].githubRepoUrl = repoUrl
+    writeUsers(freshUsers)
+
+    res.json({ ok: true, repoUrl, repoName: REPO_NAME, fileCount: treeEntries.length, skipped })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// --- GitHub Repository import ---
+app.post('/api/github-repo-import', requireAuth, async (req, res) => {
+  const username = req.user.username
+  const users = readUsers()
+  const { githubPat, githubRepoName } = users[username] || {}
+  if (!githubPat) return res.status(400).json({ error: 'No GitHub token configured. Add one in Manage Data.' })
+
+  const REPO_NAME = githubRepoName || 'roa2-notes-backup'
+
+  try {
+    const headers = githubApiHeaders(githubPat)
+    const owner = await getGithubLogin(githubPat)
+    const repoApiBase = `https://api.github.com/repos/${owner}/${REPO_NAME}`
+
+    // Get full recursive tree
+    const treeRes = await fetch(`${repoApiBase}/git/trees/main?recursive=1`, { headers })
+    if (treeRes.status === 404) return res.status(404).json({ error: `Repository "${REPO_NAME}" not found. Run a Repository Backup first.` })
+    if (!treeRes.ok) {
+      const d = await treeRes.json()
+      return res.status(treeRes.status).json({ error: d.message || 'Failed to read repository.' })
+    }
+    const blobs = (await treeRes.json()).tree.filter(e => e.type === 'blob' && (e.path === 'notes-export.json' || e.path.startsWith('attachments/')))
+
+    let notesCount = 0
+    let attachmentsCount = 0
+
+    for (const blob of blobs) {
+      const blobRes = await fetch(`${repoApiBase}/git/blobs/${blob.sha}`, { headers })
+      if (!blobRes.ok) continue
+      const blobData = await blobRes.json()
+      const buf = Buffer.from(blobData.content.replace(/\n/g, ''), 'base64')
+
+      if (blob.path === 'notes-export.json') {
+        const notes = JSON.parse(buf.toString('utf8'))
+        notesCount = writeNotes(notes, username, true)
+      } else {
+        const relPath = blob.path.slice('attachments/'.length)
+        const destPath = path.join(userAttachmentsDir(username), relPath)
+        fs.mkdirSync(path.dirname(destPath), { recursive: true })
+        fs.writeFileSync(destPath, buf)
+        attachmentsCount++
+      }
+    }
+
+    // Persist repo name for cross-device restore
+    if (!users[username].githubRepoName) {
+      const freshUsers = readUsers()
+      freshUsers[username].githubRepoName = REPO_NAME
+      freshUsers[username].githubRepoUrl = `https://github.com/${owner}/${REPO_NAME}`
+      writeUsers(freshUsers)
+    }
+
+    res.json({ ok: true, notes: notesCount, attachments: attachmentsCount })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }

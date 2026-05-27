@@ -48,6 +48,12 @@ export default function ManageData() {
   const [githubImportLoading, setGithubImportLoading] = useState(false)
   const [showPat, setShowPat] = useState(false)
 
+  const [githubRepoUrl, setGithubRepoUrl] = useState(null)
+  const [githubRepoName, setGithubRepoName] = useState(null)
+  const [repoBackupLoading, setRepoBackupLoading] = useState(false)
+  const [repoImportLoading, setRepoImportLoading] = useState(false)
+  const [repoStatus, setRepoStatus] = useState(null)
+
   const [open, setOpen] = useState({
     profile: true,
     export: true,
@@ -61,6 +67,8 @@ export default function ManageData() {
       setLimitGB(d.attachmentLimitGB != null ? String(d.attachmentLimitGB) : '')
       setGithubPatSet(!!d.githubPatSet)
       setGithubGistUrl(d.githubGistUrl || null)
+      setGithubRepoUrl(d.githubRepoUrl || null)
+      setGithubRepoName(d.githubRepoName || null)
     }).catch(() => {})
   }, [])
 
@@ -182,6 +190,8 @@ export default function ManageData() {
       }
       setGithubPatSet(false)
       setGithubGistUrl(null)
+      setGithubRepoUrl(null)
+      setGithubRepoName(null)
       setGithubPat('')
       setGithubStatus({ ok: true, message: 'Token removed.' })
     } catch {
@@ -219,6 +229,39 @@ export default function ManageData() {
       setGithubStatus({ ok: false, message: 'Import failed.' })
     } finally {
       setGithubImportLoading(false)
+    }
+  }
+
+  async function backupToGithubRepo() {
+    setRepoStatus(null)
+    setRepoBackupLoading(true)
+    try {
+      const r = await authFetch('/api/github-repo-backup', { method: 'POST' })
+      const d = await r.json()
+      if (!r.ok) return setRepoStatus({ ok: false, message: d.error || 'Backup failed.' })
+      setGithubRepoUrl(d.repoUrl)
+      setGithubRepoName(d.repoName)
+      setRepoStatus({ ok: true, message: `Backup complete! ${d.fileCount} files uploaded.`, url: d.repoUrl, skipped: d.skipped || [] })
+    } catch {
+      setRepoStatus({ ok: false, message: 'Backup failed.' })
+    } finally {
+      setRepoBackupLoading(false)
+    }
+  }
+
+  async function importFromGithubRepo() {
+    setRepoStatus(null)
+    setRepoImportLoading(true)
+    try {
+      const r = await authFetch('/api/github-repo-import', { method: 'POST' })
+      const d = await r.json()
+      if (!r.ok) return setRepoStatus({ ok: false, message: d.error || 'Import failed.' })
+      setRepoStatus({ ok: true, message: `Import complete! ${d.notes} notes and ${d.attachments} attachments restored. Reloading…` })
+      setTimeout(() => window.location.reload(), 1000)
+    } catch {
+      setRepoStatus({ ok: false, message: 'Import failed.' })
+    } finally {
+      setRepoImportLoading(false)
     }
   }
 
@@ -433,7 +476,7 @@ export default function ManageData() {
         </button>
         {open.github && (
           <div className="px-5 pb-5 space-y-3">
-            <p className="text-sm text-gray-400">Back up your notes to a private GitHub Gist. Attachments are not included.</p>
+            <p className="text-sm text-gray-400">Back up your notes to GitHub. Choose between a Gist (notes only, quick) or a Repository (notes + attachments, full backup).</p>
 
             <details className="text-sm">
               <summary className="cursor-pointer text-[#e94560] hover:opacity-80 transition-opacity select-none">How to get a GitHub token</summary>
@@ -442,7 +485,13 @@ export default function ManageData() {
                 <li>Scroll down and click <strong className="text-gray-300">Developer settings</strong></li>
                 <li>Go to <strong className="text-gray-300">Personal access tokens</strong> → <strong className="text-gray-300">Tokens (classic)</strong></li>
                 <li>Click <strong className="text-gray-300">Generate new token (classic)</strong></li>
-                <li>Give it a name like <em className="text-gray-300">RoA2 Notes Backup</em> and check only the <code className="bg-[#0f3460] px-1 rounded text-gray-200">gist</code> scope</li>
+                <li>
+                  Give it a name like <em className="text-gray-300">RoA2 Notes Backup</em> and choose your scope:
+                  <ul className="mt-1 ml-4 space-y-0.5 list-disc list-inside">
+                    <li>Gist backup only → check <code className="bg-[#0f3460] px-1 rounded text-gray-200">gist</code></li>
+                    <li>Repository backup (notes + attachments) → check <code className="bg-[#0f3460] px-1 rounded text-gray-200">repo</code> (covers gist too)</li>
+                  </ul>
+                </li>
                 <li>Click <strong className="text-gray-300">Generate token</strong> — copy it immediately, you won&apos;t see it again</li>
               </ol>
             </details>
@@ -512,6 +561,60 @@ export default function ManageData() {
                 )}
               </p>
             )}
+
+            <div className="border-t border-[#0f3460]" />
+
+            {/* Repository Backup (notes + attachments) */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-white">Repository Backup</p>
+              <p className="text-sm text-gray-400">
+                Back up notes <em>and</em> attachments to a private GitHub repository. Requires the{' '}
+                <code className="bg-[#0f3460] px-1 rounded text-gray-200">repo</code> scope on your token.
+                Files larger than 95 MB are skipped.
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={backupToGithubRepo}
+                  disabled={!githubPatSet || repoBackupLoading || repoImportLoading}
+                  className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {repoBackupLoading ? 'Backing up…' : 'Backup to Repository'}
+                </button>
+                <button
+                  onClick={importFromGithubRepo}
+                  disabled={!githubPatSet || repoImportLoading || repoBackupLoading}
+                  className="px-4 py-2 rounded-lg border border-[#e94560] text-[#e94560] text-sm font-medium hover:bg-[#e94560] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {repoImportLoading ? 'Importing…' : 'Import from Repository'}
+                </button>
+              </div>
+              {githubRepoUrl && !repoStatus?.url && (
+                <p className="text-sm text-gray-400">
+                  Last backup:{' '}
+                  <a href={githubRepoUrl} target="_blank" rel="noopener noreferrer" className="text-[#e94560] hover:underline">
+                    {githubRepoName}
+                  </a>
+                </p>
+              )}
+              {repoStatus && (
+                <div className={`text-sm ${repoStatus.ok ? 'text-green-400' : 'text-red-400'}`}>
+                  {repoStatus.message}
+                  {repoStatus.url && (
+                    <> — <a href={repoStatus.url} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">view on GitHub</a></>
+                  )}
+                  {repoStatus.skipped?.length > 0 && (
+                    <div className="text-yellow-400 mt-1">
+                      <p>{repoStatus.skipped.length} file{repoStatus.skipped.length > 1 ? 's' : ''} could not be uploaded:</p>
+                      <ul className="mt-0.5 ml-3 space-y-0.5 list-disc list-inside">
+                        {repoStatus.skipped.map((f, i) => (
+                          <li key={i} className="text-xs">{f.path} — {f.reason}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>
