@@ -115,7 +115,21 @@ Then sign out and back in — the Admin link will appear in the nav bar.
 ## Features
 
 ### Roster
-The home screen shows all 16 characters with their portraits in alphabetical order. Click any character to open their notes page.
+The home screen is split into two collapsible sections — click either header to expand or collapse it.
+
+**Official Characters** shows all 16 characters with their portraits. Click any character to open their notes page.
+
+**Workshop Characters** is a separate section for custom modded characters. **Armando** is included by default as the first workshop character — his portrait and mod link are pre-filled. Click **+ Add** to create additional entries — you must supply a name and a portrait image; a mod link is optional. Each workshop character card links to its own notes page.
+
+### Workshop Character Notes
+Each workshop character page has:
+- A portrait image — click it to replace it with a new upload
+- A full notes area with the same rich text toolbar as all other pages
+- An **attachments section** for images and videos
+- A **Mod Link** field — paste a URL to the mod and an **Open Mod** button appears to open it in a new tab. Armando's mod link is pre-filled pointing to his Steam Workshop page
+- A **Delete** button to permanently remove the character (with confirmation)
+
+Notes auto-save 500ms after you stop typing. Workshop characters and their notes are included in zip exports and merge correctly on import (matched by ID, no duplicates).
 
 ### Character Notes
 Each character page has:
@@ -135,7 +149,7 @@ Track notes on specific opponents. Each player entry has:
 
 When adding a new player, the character selector is visible immediately but stays **grayed out** until a player name is entered — ensuring every entry has a name before any characters are assigned.
 
-Player cards are **collapsible** — click the arrow on the left of the header to expand or collapse. Within a card, each individual character notes section is also collapsible via its own header toggle. On wider screens, cards are shown in a multi-column grid to make use of the extra space.
+Player cards are **collapsible** — click the arrow on the left of the header to expand or collapse. Within a card, each individual character notes section is also collapsible via its own header toggle. Cards are centered and wrap to the next row as needed; you can drag the resize handle on any notes area to make it (and its card) wider or taller — other cards will reflow around it automatically. Collapsing a card retains its default expanded width so the layout stays consistent; collapsing after a manual resize returns the card to its original size.
 
 A **search bar** at the top of the page lets you filter players by name in real time.
 
@@ -145,6 +159,8 @@ Players are listed on the Player Notes page and can be deleted from there.
 
 ### My Mains
 Select your main characters from a collapsible grid (with stock icons). Each selected main gets its own notes section for goals, habits to build, and things to work on — **separate from the roster notes** — plus its own attachment section. Quick links to the wiki page and frame data are included in each panel.
+
+Each character section is **collapsible** — click the arrow on the left of the header to expand or collapse it. You can drag the resize handle on the notes area to make the editor (and its card) wider or taller; the card border scales with it in both directions. Collapsing a section resets the card to its default width.
 
 ### Game Notes
 A single full-page notes area for anything game-wide — general strategy, tournament prep, observations, etc. Supports attachments. Saved to `notes/game-general.txt`.
@@ -228,6 +244,7 @@ Stored under `attachments/{username}/`, organized by source:
 | `attachments/alice/character/{characterId}/` | Images/videos uploaded on a character's notes page |
 | `attachments/alice/mains/{characterId}/` | Images/videos uploaded on a main's panel |
 | `attachments/alice/general/` | Images/videos uploaded on the Game Notes page |
+| `attachments/alice/workshop/{characterId}/` | Portrait and attachments for a workshop character |
 | `attachments/alice/avatar/` | Profile photo |
 
 ---

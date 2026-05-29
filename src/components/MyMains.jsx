@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CHARACTERS, characterWikiUrl, characterDataUrl } from '../data/characters'
 import { useUserMains, useMainNote } from '../hooks/useNotes'
@@ -8,17 +8,33 @@ import MarkdownEditor from './MarkdownEditor'
 
 function MainCharacterSection({ char }) {
   const [note, setNote, loaded] = useMainNote(char.id)
+  const [collapsed, setCollapsed] = useState(false)
+  const cardRef = useRef(null)
 
   return (
-    <div className="bg-[#16213e] rounded-lg overflow-hidden">
+    <div ref={cardRef} className="bg-[#16213e] rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#0f3460]">
-        <Link
-          to={`/character/${char.id}`}
-          className="flex items-center gap-2 text-white font-medium hover:text-[#e94560] transition-colors"
-        >
-          {char.stockUrl && <img src={char.stockUrl} alt="" className="w-7 h-7" />}
-          {char.name}
-        </Link>
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            onClick={() => {
+            setCollapsed(v => {
+              if (!v && cardRef.current) cardRef.current.style.width = ''
+              return !v
+            })
+          }}
+            className="text-gray-400 hover:text-white transition-colors text-xs flex-shrink-0"
+            title={collapsed ? 'Expand' : 'Collapse'}
+          >
+            {collapsed ? '▶' : '▼'}
+          </button>
+          <Link
+            to={`/character/${char.id}`}
+            className="flex items-center gap-2 text-white font-medium hover:text-[#e94560] transition-colors min-w-0"
+          >
+            {char.stockUrl && <img src={char.stockUrl} alt="" className="w-7 h-7" />}
+            {char.name}
+          </Link>
+        </div>
         <div className="flex gap-2">
           <WikiLink
             href={characterWikiUrl(char.wikiSlug)}
@@ -34,16 +50,19 @@ function MainCharacterSection({ char }) {
           </WikiLink>
         </div>
       </div>
-      <div className="p-3">
-        <MarkdownEditor
-          value={note}
-          onChange={setNote}
-          placeholder={loaded ? `Things to work on, goals, habits to build with ${char.name}...` : 'Loading...'}
-          disabled={!loaded}
-          className="h-32"
-        />
-        <AttachmentSection scope="mains" id={char.id} />
-      </div>
+      {!collapsed && (
+        <div className="p-3">
+          <MarkdownEditor
+            value={note}
+            onChange={setNote}
+            placeholder={loaded ? `Things to work on, goals, habits to build with ${char.name}...` : 'Loading...'}
+            disabled={!loaded}
+            className="h-32"
+            onResize={w => { if (cardRef.current) cardRef.current.style.width = (w + 24) + 'px' }}
+          />
+          <AttachmentSection scope="mains" id={char.id} />
+        </div>
+      )}
     </div>
   )
 }

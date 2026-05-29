@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -67,9 +67,24 @@ function applyFormat(textarea, value, action) {
   return { newValue, newStart, newEnd }
 }
 
-export default function MarkdownEditor({ value, onChange, placeholder, disabled, className }) {
+export default function MarkdownEditor({ value, onChange, placeholder, disabled, className, onResize }) {
   const [preview, setPreview] = useState(false)
   const textareaRef = useRef(null)
+  const outerRef = useRef(null)
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    const outer = outerRef.current
+    if (!textarea || !outer) return
+    const ro = new ResizeObserver(() => {
+      const w = textarea.offsetWidth
+      outer.style.width = w + 'px'
+      // Only notify parent when user has explicitly dragged the resize handle
+      if (textarea.style.width) onResize?.(w)
+    })
+    ro.observe(textarea)
+    return () => ro.disconnect()
+  }, [])
 
   function handleFormat(action) {
     const textarea = textareaRef.current
@@ -83,7 +98,7 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled,
   }
 
   return (
-    <div className="flex flex-col gap-0">
+    <div ref={outerRef} className="flex flex-col gap-0">
       <div className="flex items-center bg-[#0f3460] rounded-t px-2 py-1 gap-1 flex-wrap">
         {TOOLBAR_BUTTONS.map(btn => (
           <button
@@ -157,7 +172,7 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled,
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          className={`w-full ${className} bg-[#16213e] text-white rounded-b p-3 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-[#e94560] placeholder-gray-500 disabled:opacity-50`}
+          className={`w-full ${className} bg-[#16213e] text-white rounded-b p-3 text-sm resize focus:outline-none focus:ring-2 focus:ring-[#e94560] placeholder-gray-500 disabled:opacity-50`}
         />
       )}
     </div>

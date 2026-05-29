@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { CHARACTERS } from '../data/characters'
 import { usePlayerList, usePlayerNote, usePlayerCharNote } from '../hooks/useNotes'
 import { authFetch } from '../utils/api'
@@ -56,10 +56,10 @@ function PlayerCharNote({ playerId, playerName, char }) {
   const [note, setNote, loaded] = usePlayerCharNote(playerId, char.id)
   const [collapsed, setCollapsed] = useState(false)
   return (
-    <div className="border border-[#0f3460] rounded-lg overflow-hidden">
+    <div className="border border-[#0f3460] rounded-lg">
       <button
         onClick={() => setCollapsed(v => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2 bg-[#1a1a2e] border-b border-[#0f3460] hover:bg-[#0f3460] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 bg-[#1a1a2e] border-b border-[#0f3460] hover:bg-[#0f3460] transition-colors rounded-t-lg overflow-hidden"
       >
         <span className="text-gray-400 text-xs flex-shrink-0">{collapsed ? '▶' : '▼'}</span>
         {char.stockUrl && <img src={char.stockUrl} alt="" className="w-5 h-5" />}
@@ -83,7 +83,13 @@ function PlayerCharNote({ playerId, playerName, char }) {
 function PlayerCard({ player, players, setPlayers, onDelete }) {
   const [collapsed, setCollapsed] = useState(false)
   const [generalNote, setGeneralNote, generalLoaded] = usePlayerNote(player.id)
+  const cardRef = useRef(null)
+  const naturalWidthRef = useRef(null)
   const charIds = player.charIds ?? []
+
+  useEffect(() => {
+    if (cardRef.current) naturalWidthRef.current = cardRef.current.offsetWidth
+  }, [])
   const selectedChars = CHARACTERS.filter(c => charIds.includes(c.id))
 
   function updateName(name) {
@@ -95,10 +101,19 @@ function PlayerCard({ player, players, setPlayers, onDelete }) {
   }
 
   return (
-    <div className="bg-[#16213e] rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-3 border-b border-[#0f3460]">
+    <div ref={cardRef} className="bg-[#16213e] rounded-lg min-w-80 shrink-0">
+      <div className="flex items-center justify-between px-3 py-3 border-b border-[#0f3460] rounded-t-lg overflow-hidden">
         <button
-          onClick={() => setCollapsed(v => !v)}
+          onClick={() => {
+            setCollapsed(v => {
+              if (!v && cardRef.current) {
+                cardRef.current.style.minWidth = (naturalWidthRef.current ?? cardRef.current.offsetWidth) + 'px'
+              } else if (cardRef.current) {
+                cardRef.current.style.minWidth = ''
+              }
+              return !v
+            })
+          }}
           className="text-gray-400 hover:text-white transition-colors text-xs pr-3 flex-shrink-0"
           title={collapsed ? 'Expand' : 'Collapse'}
         >
@@ -273,8 +288,7 @@ export default function PlayerNotes() {
         <p className="text-gray-500 text-sm">No players match "{searchQuery}".</p>
       )}
 
-      {/* Responsive grid: 1 col mobile → 2 col md → 3 col xl */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+      <div className="flex flex-wrap gap-4 items-start justify-center">
         {filteredPlayers.map(player => (
           <PlayerCard
             key={player.id}

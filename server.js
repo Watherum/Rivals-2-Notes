@@ -140,6 +140,7 @@ function keyToFile(key, username) {
   const base = userNotesDir(username)
   if (key === 'user_mains') return path.join(base, 'mains.json')
   if (key === 'player_list') return path.join(base, 'player-list.json')
+  if (key === 'workshop_characters') return path.join(base, 'workshop-characters.json')
   if (key === 'mains_general') return path.join(base, 'mains-general.txt')
   if (key === 'game_general') return path.join(base, 'game-general.txt')
   if (key.startsWith('player_notes_')) return path.join(base, 'player-notes-' + key.slice(13) + '.txt')
@@ -152,6 +153,7 @@ function keyToFile(key, username) {
 function fileToKey(filename) {
   if (filename === 'mains.json') return 'user_mains'
   if (filename === 'player-list.json') return 'player_list'
+  if (filename === 'workshop-characters.json') return 'workshop_characters'
   if (filename === 'mains-general.txt') return 'mains_general'
   if (filename === 'game-general.txt') return 'game_general'
   const base = filename.replace(/\.(txt|json)$/, '')
@@ -210,6 +212,12 @@ function mergeNoteValue(existing, incoming, key) {
     const a = Array.isArray(existing) ? existing : []
     const b = Array.isArray(incoming) ? incoming : []
     return [...new Set([...a, ...b])]
+  }
+  if (key === 'workshop_characters') {
+    const a = Array.isArray(existing) ? existing : []
+    const b = Array.isArray(incoming) ? incoming : []
+    const ids = new Set(a.map(c => c.id))
+    return [...a, ...b.filter(c => !ids.has(c.id))]
   }
   // String notes: append with separator if both have content
   const existingStr = typeof existing === 'string' ? existing.trim() : ''

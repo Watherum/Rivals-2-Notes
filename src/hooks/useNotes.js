@@ -82,6 +82,22 @@ export function usePlayerCharNote(playerId, charId) {
   return useServerNote(`player_notes_${playerId}_${charId}`, '')
 }
 
+const ARMANDO_DEFAULT = {
+  id: 'default_armando',
+  name: 'Armando',
+  imageUrl: '/portraits/Armando.png',
+  modUrl: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3607712286',
+  createdAt: '2024-01-01T00:00:00.000Z',
+}
+
+export function useWorkshopCharacters() {
+  return useServerNote('workshop_characters', [ARMANDO_DEFAULT])
+}
+
+export function useWorkshopCharacterNote(charId) {
+  return useServerNote(`notes_workshop_${charId}`, '')
+}
+
 export function exportNotes() {
   const token = getToken()
   const a = document.createElement('a')

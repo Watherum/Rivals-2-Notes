@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Routes, Route, Link, useLocation, Navigate, Outlet } from 'react-router-dom'
 import CharacterGrid from './components/CharacterGrid'
 import CharacterPage from './components/CharacterPage'
+import WorkshopCharacterPage from './components/WorkshopCharacterPage'
 import MyMains from './components/MyMains'
 import PlayerNotes from './components/PlayerNotes'
 import GameNotes from './components/GameNotes'
@@ -187,6 +188,7 @@ export default function App() {
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<CharacterGrid />} />
         <Route path="/character/:characterId" element={<CharacterPage />} />
+        <Route path="/workshop/:characterId" element={<WorkshopCharacterPage />} />
         <Route path="/players"   element={<PlayerNotes />} />
         <Route path="/mains"     element={<MyMains />} />
         <Route path="/notes"     element={<GameNotes />} />
