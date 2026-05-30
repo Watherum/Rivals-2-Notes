@@ -71,20 +71,32 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled,
   const [preview, setPreview] = useState(false)
   const textareaRef = useRef(null)
   const outerRef = useRef(null)
+  const userWidthRef = useRef(null)
+  const userHeightRef = useRef(null)
 
   useEffect(() => {
+    if (preview) return
     const textarea = textareaRef.current
     const outer = outerRef.current
     if (!textarea || !outer) return
+
+    outer.style.width = userWidthRef.current ? userWidthRef.current + 'px' : ''
+    if (userHeightRef.current) textarea.style.height = userHeightRef.current
+
     const ro = new ResizeObserver(() => {
       const w = textarea.offsetWidth
-      outer.style.width = w + 'px'
-      // Only notify parent when user has explicitly dragged the resize handle
-      if (textarea.style.width) onResize?.(w)
+      if (w > 0 && textarea.style.width) {
+        userWidthRef.current = w
+        outer.style.width = w + 'px'
+        onResize?.(w)
+      }
+      if (textarea.style.height) {
+        userHeightRef.current = textarea.style.height
+      }
     })
     ro.observe(textarea)
     return () => ro.disconnect()
-  }, [])
+  }, [preview])
 
   function handleFormat(action) {
     const textarea = textareaRef.current
@@ -114,7 +126,12 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled,
         ))}
         <button
           type="button"
-          onClick={() => setPreview(v => !v)}
+          onClick={() => {
+            if (!preview && textareaRef.current?.style.height) {
+              userHeightRef.current = textareaRef.current.style.height
+            }
+            setPreview(v => !v)
+          }}
           disabled={disabled}
           className={`ml-auto px-2 py-0.5 text-xs rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
             preview
@@ -129,7 +146,7 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled,
       {preview ? (
         <div
           className={`w-full ${className} bg-[#16213e] text-white rounded-b p-3 text-sm overflow-y-auto prose-dark`}
-          style={{ minHeight: '4rem' }}
+          style={{ minHeight: '4rem', ...(userHeightRef.current ? { height: userHeightRef.current } : {}) }}
         >
           {value ? (
             <ReactMarkdown
