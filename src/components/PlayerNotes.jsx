@@ -101,7 +101,7 @@ function PlayerCard({ player, players, setPlayers, onDelete }) {
   }
 
   return (
-    <div ref={cardRef} className="bg-[#16213e] rounded-lg min-w-80 shrink-0">
+    <div ref={cardRef} className="bg-[#16213e] rounded-lg w-full sm:w-auto sm:min-w-80 sm:shrink-0">
       <div className="flex items-center justify-between px-3 py-3 border-b border-[#0f3460] rounded-t-lg overflow-hidden">
         <button
           onClick={() => {
