@@ -189,6 +189,7 @@ Quick links to useful external sites:
 - **Dragdown Wiki** — RoA2 wiki on dragdown.wiki
 - **Rivals 2 VODs** — match VOD browser
 - **Rivals 2 Discords** — community and character Discord servers
+- **Matchup Buddy** — matchup charts and character data
 - **Rivals Play Network** — find local and online tournaments
 - **Rivals 2 Nolt Board** — submit and vote on feedback
 - **Watherum's Discord** — community Discord

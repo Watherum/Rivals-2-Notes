@@ -17,6 +17,11 @@ const RESOURCES = [
     url: 'https://dragdown.wiki/wiki/RoA2/Discords',
   },
   {
+    label: 'Matchup Buddy',
+    description: 'Browse matchup charts and character data.',
+    url: 'https://matchupbuddy.gg/',
+  },
+  {
     label: 'Rivals Play Network',
     description: 'Discover local and online tournaments via Rivals Play Network.',
     url: 'https://rivalsplaynetwork.com/',
