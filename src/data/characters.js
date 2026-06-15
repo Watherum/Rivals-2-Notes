@@ -30,3 +30,13 @@ export function characterDataUrl(wikiSlug) {
 export function frameDataUrl() {
   return `${WIKI_BASE}/Frame_Data`
 }
+
+const MATCHUP_BUDDY_SLUGS = { lareina: 'la-reina' }
+
+export function matchupBuddySlug(id) {
+  return MATCHUP_BUDDY_SLUGS[id] ?? id
+}
+
+export function matchupBuddyUrl(mainId, opponentId) {
+  return `https://matchupbuddy.gg/${matchupBuddySlug(mainId)}/${matchupBuddySlug(opponentId)}`
+}

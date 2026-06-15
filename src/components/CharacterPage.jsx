@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
-import { CHARACTERS, characterWikiUrl, characterDataUrl } from '../data/characters'
-import { useCharacterNote, usePlayerList, usePlayerCharNote } from '../hooks/useNotes'
+import { CHARACTERS, characterWikiUrl, characterDataUrl, matchupBuddyUrl } from '../data/characters'
+import { useCharacterNote, usePlayerList, usePlayerCharNote, useUserMains } from '../hooks/useNotes'
 import WikiLink from './WikiLink'
 import AttachmentSection from './AttachmentSection'
 import MarkdownEditor from './MarkdownEditor'
@@ -30,6 +30,7 @@ export default function CharacterPage() {
   const character = CHARACTERS.find(c => c.id === characterId)
   const [note, setNote, loaded] = useCharacterNote(characterId)
   const [players] = usePlayerList()
+  const [mains] = useUserMains()
   const matchingPlayers = players.filter(p =>
     p.charIds?.includes(characterId) || p.mainCharId === characterId
   )
@@ -78,6 +79,20 @@ export default function CharacterPage() {
       >
         View {character.name} Full Wiki Page
       </WikiLink>
+
+      {mains.map(mainId => {
+        const main = CHARACTERS.find(c => c.id === mainId)
+        if (!main) return null
+        return (
+          <WikiLink
+            key={mainId}
+            href={matchupBuddyUrl(mainId, characterId)}
+            className="block w-full text-center py-2 rounded-lg border border-[#e94560] text-[#e94560] hover:bg-[#e94560] hover:text-white transition-colors"
+          >
+            {main.name} Vs {character.name} (Matchup Buddy)
+          </WikiLink>
+        )
+      })}
 
       {matchingPlayers.length > 0 && (
         <section className="space-y-3">
