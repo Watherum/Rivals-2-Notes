@@ -39,3 +39,7 @@ users.json
 *.njsproj
 *.sln
 *.sw?
+
+# electron-builder output + portable unpack folder
+release/
+RoA2 Notes Files/

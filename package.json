@@ -1,7 +1,7 @@
 {
   "name": "rivals-2-notes",
   "private": true,
-  "version": "9.2.0",
+  "version": "9.3.0",
   "type": "module",
   "author": "Watherum",
   "main": "electron/main.cjs",
@@ -13,7 +13,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron:dev": "npm run build && electron .",
-    "electron:build": "npm run build && electron-builder"
+    "electron:build": "npm run build && node electron/patch-portable-launcher.cjs && electron-builder"
   },
   "build": {
     "appId": "com.roa2notes.app",
@@ -23,6 +23,8 @@
     "asar": false,
     "files": [
       "electron/**",
+      "!electron/portable.nsi",
+      "!electron/patch-portable-launcher.cjs",
       "server.js",
       "dist/**",
       "node_modules/**"
@@ -39,6 +41,9 @@
     "win": {
       "target": "portable",
       "icon": "public/logos/RIVALS_2_LOGO_MAIN.png"
+    },
+    "directories": {
+      "output": "release"
     }
   },
   "dependencies": {
